@@ -59,10 +59,22 @@
     }
 
     function Enable-Plugin($steam, $pluginName) {
-        foreach ($cfg in @(
+        $cfgList = @(
             (Join-Path $steam 'millennium\config\config.json'),
             (Join-Path $env:USERPROFILE '.millennium\config\config.json')
-        )) {
+        )
+        # Fresh Millennium install: config.json is created on first launch. Seed
+        # a minimal one now so the plugin comes up already enabled.
+        if (-not ($cfgList | Where-Object { Test-Path $_ })) {
+            $seed = $cfgList[0]
+            try {
+                New-Item -ItemType Directory -Force -Path (Split-Path $seed) | Out-Null
+                '{ "plugins": { "enabledPlugins": ["' + $pluginName + '"] } }' | Set-Content $seed -Encoding UTF8
+                Write-Host (L "Seeded Millennium config with the plugin enabled." "Создал конфиг Millennium с включённым плагином.") -ForegroundColor Green
+                return
+            } catch { }
+        }
+        foreach ($cfg in $cfgList) {
             if (-not (Test-Path $cfg)) { continue }
             try {
                 $j = Get-Content -Raw $cfg | ConvertFrom-Json
@@ -88,11 +100,69 @@
         Write-Host (L "Millennium config.json not found; enable the plugin manually in Millennium -> Settings -> Plugins." "config.json Millennium не найден; включи плагин вручную в Millennium -> Settings -> Plugins.") -ForegroundColor Yellow
     }
 
+    function Test-Millennium($steam) {
+        return (Test-Path (Join-Path $steam 'millennium\lib\millennium.dll')) -or
+               (Test-Path (Join-Path $steam 'millennium')) -or
+               (Test-Path (Join-Path $steam 'wsock32.dll')) -or
+               (Test-Path (Join-Path $steam 'user32.dll')) -or
+               (Test-Path (Join-Path $env:USERPROFILE '.millennium'))
+    }
+
+    # Same steps as the official installer: stop Steam, download the release
+    # zip (verify sha256), extract into the Steam root.
+    function Install-Millennium($steam, $tmpDir) {
+        Write-Host (L "Millennium not found. Installing it (official release)..." "Millennium не найден. Ставлю его (официальный релиз)...") -ForegroundColor Yellow
+
+        $rel = Invoke-RestMethod 'https://api.github.com/repos/SteamClientHomebrew/Millennium/releases/latest' -Headers @{ 'User-Agent' = 'scc-installer' }
+        $asset = $rel.assets | Where-Object { $_.name -like '*windows-x86_64.zip' } | Select-Object -First 1
+        if (-not $asset) { throw 'Could not find the Millennium Windows release asset.' }
+
+        $zip = Join-Path $tmpDir $asset.name
+        Write-Host "  $($asset.name) ($($rel.tag_name))"
+        Invoke-WebRequest $asset.browser_download_url -OutFile $zip -UseBasicParsing
+
+        $want = $null
+        if ($asset.digest -and $asset.digest -like 'sha256:*') {
+            $want = $asset.digest.Substring(7)
+        } else {
+            $sha = $rel.assets | Where-Object { $_.name -eq ($asset.name + '.sha256') } | Select-Object -First 1
+            if ($sha) { $want = ((Invoke-WebRequest $sha.browser_download_url -UseBasicParsing).Content -split '\s+')[0] }
+        }
+        if ($want) {
+            $got = (Get-FileHash $zip -Algorithm SHA256).Hash
+            if ($got -ne $want.Trim().ToUpper() -and $got -ne $want.Trim().ToLower() -and $got.ToLower() -ne $want.Trim().ToLower()) {
+                throw 'Millennium download failed sha256 verification.'
+            }
+        }
+
+        $running = Get-Process steam -ErrorAction SilentlyContinue
+        if ($running) {
+            Write-Host (L "Closing Steam to install Millennium..." "Закрываю Steam для установки Millennium...") -ForegroundColor DarkYellow
+            $running | Stop-Process -Force
+            Start-Sleep -Seconds 3
+        }
+
+        try {
+            Expand-Archive -Path $zip -DestinationPath $steam -Force
+        } catch {
+            throw (L "Could not write to $steam. Run PowerShell as administrator and retry." "Нет доступа на запись в $steam. Запусти PowerShell от администратора и повтори.")
+        }
+        Write-Host (L "Millennium installed. It finishes setup on the next Steam launch." "Millennium установлен. Донастройка — при следующем запуске Steam.") -ForegroundColor Green
+        $script:sccNeedSteamStart = $true
+    }
+
     $steam = if ($env:SCC_STEAM_PATH) { $env:SCC_STEAM_PATH } else { Resolve-SteamPath }
     Write-Host "Steam:   $steam"
 
     $tmp = Join-Path $env:TEMP ("scc-" + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+
+    if (-not (Test-Millennium $steam)) {
+        Install-Millennium $steam $tmp
+        if (-not (Test-Millennium $steam)) {
+            throw (L "Millennium install did not land. Get it from https://steambrew.app and re-run." "Millennium не установился. Возьми его с https://steambrew.app и запусти команду снова.")
+        }
+    }
 
     try {
         $pluginSrc = $null
@@ -151,7 +221,16 @@
         Enable-Plugin $steam $name
 
         Write-Host ""
-        Write-Host (L "Done. Fully restart Steam (tray -> Exit), then open the store." "Готово. Полностью перезапусти Steam (трей -> Выход), затем открой магазин.") -ForegroundColor Green
+        if ($script:sccNeedSteamStart) {
+            $exe = Join-Path $steam 'steam.exe'
+            if (Test-Path $exe) {
+                Write-Host (L "Starting Steam..." "Запускаю Steam...") -ForegroundColor Green
+                Start-Process -FilePath $exe
+            }
+            Write-Host (L "Done. Millennium + the plugin are installed." "Готово. Millennium и плагин установлены.") -ForegroundColor Green
+        } else {
+            Write-Host (L "Done. Fully restart Steam (tray -> Exit), then open the store." "Готово. Полностью перезапусти Steam (трей -> Выход), затем открой магазин.") -ForegroundColor Green
+        }
     }
     finally {
         Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
