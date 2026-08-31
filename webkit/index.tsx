@@ -360,6 +360,14 @@ function alreadyConverted(element: Element): boolean {
 	return element.getAttribute('data-scc-done') === '1' || text.includes('≈');
 }
 
+function isStruck(el: Element): boolean {
+	try {
+		return window.getComputedStyle(el).textDecorationLine.includes('line-through');
+	} catch {
+		return false;
+	}
+}
+
 function shouldSkip(element: Element): boolean {
 	if (!(element instanceof HTMLElement)) return true;
 	if (alreadyConverted(element)) return true;
@@ -373,6 +381,10 @@ function shouldSkip(element: Element): boolean {
 	if (classList.includes('your_price_label')) return true;
 	if (classList.includes('spotlight_body') || classList.includes('similar_grid_price')) return true;
 	if (classList.includes('market_table_value')) return true;
+
+	// Struck-through text is the pre-discount original price — skip it
+	// (covers React widgets where the class is hashed).
+	if (isStruck(element) || (element.parentElement && isStruck(element.parentElement))) return true;
 
 	const ownText = element.innerText || element.textContent || '';
 
