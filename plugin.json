@@ -6,5 +6,5 @@
   "version": "2.0.0",
   "backendType": "lua",
   "webkitApiVersion": "2.0.0",
-  "include": ["README.md", "LICENSE"]
+  "include": ["README.md", "README.ru.md", "LICENSE"]
 }

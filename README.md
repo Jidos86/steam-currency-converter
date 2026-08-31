@@ -1,50 +1,52 @@
 # Steam Currency Converter
 
-Плагин для [Millennium](https://steambrew.app): показывает **примерную цену в выбранной валюте** рядом с любой ценой Steam — в магазине, корзине, оформлении заказа, на странице сообщества и в игровом оверлее.
+**English** · [Русский](README.ru.md)
 
-> Это приблизительная конвертация по биржевому курсу, а **не** официальная региональная цена Steam.
+A [Millennium](https://steambrew.app) plugin: shows an **approximate price in the currency you pick** next to any Steam price — store, cart, checkout, community market, and the in-game overlay.
 
-![Steam Currency Converter в магазине Steam](docs/demo.png)
+> This is an approximate exchange-rate conversion, **not** an official Steam regional price.
 
-Форк [KuroKim/steam-currency-to-rub](https://github.com/KuroKim/steam-currency-to-rub).
+![Steam Currency Converter on the Steam store](docs/demo.png)
+
+Fork of [KuroKim/steam-currency-to-rub](https://github.com/KuroKim/steam-currency-to-rub).
 
 ---
 
-## Возможности
+## Features
 
-- **выбор целевой валюты** в настройках плагина (Millennium → Settings → Plugins → Steam Currency Converter); по умолчанию RUB;
-- определяет валюту аккаунта автоматически (по id кошелька Steam → schema.org → форматтеру магазина);
-- поддерживает все 40 валют кошелька Steam и как исходную, и как целевую
+- **target currency is selectable** in the plugin settings (Millennium → Settings → Plugins → Steam Currency Converter); RUB by default;
+- detects the account's wallet currency automatically (wallet id → schema.org markup → store formatter);
+- supports all 40 Steam wallet currencies as both source and target
   (USD, EUR, GBP, CHF, PLN, BRL, JPY, NOK, IDR, MYR, PHP, SGD, THB, VND, KRW, TRY,
   UAH, MXN, CAD, AUD, CNY, INR, CLP, PEN, COP, ZAR, HKD, TWD, SAR, AED, SEK, ARS,
   ILS, BYN, KZT, KWD, QAR, CRC, UYU, NZD);
-- универсальный разбор цен: `1,234.56`, `1.234,56`, `1 199`, валюты без копеек;
-- работает в корзине и оформлении заказа (в т.ч. новый React-интерфейс) и в оверлее;
-- курс кешируется на 6 часов, при недоступности сети — прошлый кеш; три источника с автопереключением;
-- рендер только через DOM API (`createElement` / `textContent`) — без `innerHTML`, `eval` и удалённого кода.
+- format-agnostic price parsing: `1,234.56`, `1.234,56`, `1 199`, zero-decimal currencies;
+- works in the cart and checkout (including the new React UI) and the overlay;
+- exchange rates cached for 6 hours, falls back to the last cache when offline; three sources with automatic failover;
+- DOM-only rendering (`createElement` / `textContent`) — no `innerHTML`, no `eval`, no remote code.
 
-Смена валюты применяется после перезапуска Steam.
+A currency change takes effect after Steam is restarted.
 
 ---
 
-## Установка
+## Install
 
-Нужен установленный [Millennium](https://steambrew.app).
+Requires [Millennium](https://steambrew.app).
 
-### Одной командой (PowerShell)
+### One line (PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/Jidos86/steam-currency-converter/main/scripts/web-install.ps1 | iex
 ```
 
-### Вручную
+### Manually
 
-1. Скачай релизный `steam-currency-converter.zip` (вкладка Releases) — он уже собран.
-2. Распакуй в `…\Steam\millennium\plugins\` → `…\plugins\steam-currency-converter\plugin.json`.
-3. Millennium → Settings → Plugins → включи **Steam Currency Converter**.
-4. Полностью перезапусти Steam.
+1. Download the prebuilt `steam-currency-converter.zip` from the Releases tab.
+2. Extract into `…\Steam\millennium\plugins\` → `…\plugins\steam-currency-converter\plugin.json`.
+3. Millennium → Settings → Plugins → enable **Steam Currency Converter**.
+4. Fully restart Steam.
 
-### Удаление
+### Uninstall
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
@@ -52,19 +54,19 @@ powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 
 ---
 
-## Как это работает
+## How it works
 
-Плагин состоит из трёх частей (сборка `@steambrew/ttc`):
+Three parts, built with `@steambrew/ttc`:
 
-| часть | что делает |
+| part | role |
 |---|---|
-| `webkit/` | внедряется в страницы Steam с `Page.setBypassCSP` (поэтому работает даже там, где CSP магазина блокирует сторонние `<script>` — например, в китайском регионе); тянет курсы через [currency-api](https://github.com/fawazahmed0/exchange-api), определяет валюту аккаунта, сканирует ценовые блоки (+ MutationObserver, + отдельный проход по `/cart` и `/checkout`) и дописывает `≈ N <валюта>` |
-| `frontend/` | панель настроек с выпадающим списком валют |
-| `backend/main.lua` | хранит выбранную валюту (`millennium.config`) и отдаёт её webkit-модулю и панели через `callable` |
+| `webkit/` | injected into Steam pages with `Page.setBypassCSP` (so it works even where the store CSP blocks external `<script>`, e.g. the Steam China store); fetches rates from [currency-api](https://github.com/fawazahmed0/exchange-api), detects the wallet currency, scans price nodes (+ a MutationObserver, + an extra pass on `/cart` and `/checkout`) and appends `≈ N <cur>` |
+| `frontend/` | the settings panel with the currency dropdown |
+| `backend/main.lua` | stores the chosen currency (`millennium.config`) and hands it to the webkit module and the panel via `callable` |
 
 ---
 
-## Разработка
+## Development
 
 ```bash
 npm install
@@ -73,26 +75,26 @@ npm run typecheck
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\dev-link.ps1   # симлинк репо в папку плагинов Millennium
+powershell -ExecutionPolicy Bypass -File .\scripts\dev-link.ps1   # symlink the repo into the Millennium plugins dir
 ```
 
 ```text
-plugin.json                  манифест Millennium
-frontend/index.tsx           панель настроек
-webkit/index.tsx             конвертер (внедряется в страницы Steam)
-backend/main.lua             хранение выбранной валюты
+plugin.json                  Millennium manifest
+frontend/index.tsx           settings panel
+webkit/index.tsx             the converter (injected into Steam pages)
+backend/main.lua             stores the chosen currency
 scripts/                     install / uninstall / dev-link / web-install
-.github/workflows/ci.yml     typecheck → build → luaparse → zip (релиз по тегу v*)
+.github/workflows/ci.yml     typecheck → build → luaparse → zip (release on v* tags)
 ```
 
-`.millennium/` и `node_modules/` — сборка, в git не хранятся.
+`.millennium/` and `node_modules/` are build output and are not committed.
 
 ---
 
-## Благодарности
+## Credits
 
-- Оригинальный плагин — [KuroKim](https://github.com/KuroKim/steam-currency-to-rub).
-- Исходный userscript — [CJMAXiK](https://gist.github.com/cjmaxik/7ce493d08958eecd56a78c01482e49fa) (MIT).
-- Курсы валют — [@fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api).
+- Original plugin — [KuroKim](https://github.com/KuroKim/steam-currency-to-rub).
+- Original userscript — [CJMAXiK](https://gist.github.com/cjmaxik/7ce493d08958eecd56a78c01482e49fa) (MIT).
+- Exchange rates — [@fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api).
 
-Не связано с Valve и Millennium / Steambrew. Неофициальный плагин. Лицензия MIT.
+Not affiliated with Valve or Millennium / Steambrew. Unofficial plugin. MIT licensed.
