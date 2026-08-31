@@ -81,6 +81,9 @@ const SettingsContent = () => {
 };
 
 export default definePlugin(() => ({
+	// `title` is required by the ttc runtime to register the settings panel,
+	// even though the current @steambrew/client `Plugin` type omits it.
+	title: 'Steam Currency Converter',
 	icon: <IconsModule.Settings />,
 	content: <SettingsContent />,
 }));
