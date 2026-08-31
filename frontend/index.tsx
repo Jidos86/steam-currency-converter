@@ -59,7 +59,8 @@ const OPTIONS = TARGET_CURRENCIES.map((c) => ({ data: c.code, label: `${c.name} 
 const KNOWN_CODES = new Set(TARGET_CURRENCIES.map((c) => c.code));
 
 const SettingsContent = () => {
-	const [selected, setSelected] = useState<string>(DEFAULT_TARGET);
+	// null = still loading the saved value from plugin config.
+	const [selected, setSelected] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -68,10 +69,10 @@ const SettingsContent = () => {
 			.then((value) => {
 				if (cancelled) return;
 				const code = typeof value === 'string' ? value.toUpperCase() : '';
-				if (KNOWN_CODES.has(code)) setSelected(code);
+				setSelected(KNOWN_CODES.has(code) ? code : DEFAULT_TARGET);
 			})
 			.catch(() => {
-				/* keep default */
+				if (!cancelled) setSelected(DEFAULT_TARGET);
 			});
 		return () => {
 			cancelled = true;
@@ -81,7 +82,9 @@ const SettingsContent = () => {
 	const handleChange = (code: string) => {
 		if (!KNOWN_CODES.has(code)) return;
 		setSelected(code);
-		void pluginConfig.set('target_currency', code);
+		void pluginConfig.set('target_currency', code).catch((e) => {
+			console.error('[Steam Currency Converter] failed to save target_currency', e);
+		});
 	};
 
 	return (
@@ -93,11 +96,17 @@ const SettingsContent = () => {
 				childrenLayout="below"
 				bottomSeparator="none"
 			>
-				<Dropdown
-					rgOptions={OPTIONS}
-					selectedOption={selected}
-					onChange={(option) => handleChange(String(option.data))}
-				/>
+				{selected !== null && (
+					// Steam's Dropdown is a class component that keeps its own
+					// selection state and ignores `selectedOption` prop updates
+					// after mount — remount it via `key` when the value changes.
+					<Dropdown
+						key={selected}
+						rgOptions={OPTIONS}
+						selectedOption={selected}
+						onChange={(option) => handleChange(String(option.data))}
+					/>
+				)}
 			</Field>
 		</div>
 	);
