@@ -297,12 +297,36 @@ function detectCurrencyFromWallet(): { abbr: string; sign: string } | null {
 	return null;
 }
 
-// Source currency is only ever taken from the two unambiguous sources: the
-// wallet id and the schema.org priceCurrency meta. A symbol-based guess is
-// deliberately not used — ¥ is JPY *and* CNY, kr is NOK *and* SEK, etc., and a
-// silently wrong rate is worse than not converting.
+const SOURCE_CACHE_KEY = 'scc_source_currency';
+
+/** Last currency detected from an authoritative source, reused on pages that
+ *  expose neither the wallet id nor the priceCurrency meta (e.g. /search). */
+function detectCurrencyFromCache(): { abbr: string; sign: string | null } | null {
+	try {
+		const abbr = (localStorage.getItem(SOURCE_CACHE_KEY) || '').toUpperCase();
+		const match = STEAM_CURRENCIES.find((c) => c.abbr === abbr);
+		if (match) return { abbr: match.abbr, sign: match.symbol };
+	} catch {
+		/* ignore */
+	}
+	return null;
+}
+
+// Source currency is only ever taken from unambiguous sources: the wallet id,
+// the schema.org priceCurrency meta, or a value one of those produced earlier
+// (cached). A symbol-based guess is deliberately not used — ¥ is JPY *and* CNY,
+// kr is NOK *and* SEK — a silently wrong rate is worse than not converting.
 function detectCurrentCurrency(): { abbr: string; sign: string | null } | null {
-	return detectCurrencyFromWallet() || detectCurrencyFromMeta() || null;
+	const authoritative = detectCurrencyFromWallet() || detectCurrencyFromMeta();
+	if (authoritative) {
+		try {
+			localStorage.setItem(SOURCE_CACHE_KEY, authoritative.abbr);
+		} catch {
+			/* ignore */
+		}
+		return authoritative;
+	}
+	return detectCurrencyFromCache();
 }
 
 function formatTarget(value: number): string {
@@ -332,6 +356,9 @@ function alreadyConverted(element: Element): boolean {
 function shouldSkip(element: Element): boolean {
 	if (!(element instanceof HTMLElement)) return true;
 	if (alreadyConverted(element)) return true;
+	// A parent or child was already converted (covers MutationObserver re-runs).
+	if (element.parentElement?.closest('[data-scc-done="1"]')) return true;
+	if (element.querySelector('[data-scc-done="1"]')) return true;
 
 	const classList = String(element.className || '');
 	if (classList.includes('discount_original_price')) return true;
@@ -485,8 +512,11 @@ function scanLooseCartPrices(root: Document | HTMLElement): void {
 function runInjection(root: Document | HTMLElement = document): void {
 	if (!sourceCurrency || rate == null) return;
 
-	const prices = root.querySelectorAll<HTMLElement>(SELECTORS);
-	for (const priceNode of Array.from(prices)) {
+	const prices = Array.from(root.querySelectorAll<HTMLElement>(SELECTORS));
+	// When selectors match both a price element and one of its ancestors,
+	// keep only the innermost so the hint is appended once.
+	const innermost = prices.filter((el) => !prices.some((other) => other !== el && el.contains(other)));
+	for (const priceNode of innermost) {
 		try {
 			injectPrice(priceNode);
 		} catch (error) {
