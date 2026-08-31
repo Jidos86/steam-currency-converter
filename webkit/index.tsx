@@ -110,7 +110,7 @@ const SELECTORS = [
 	'.discount_final_price > div:not([class])',
 	'.search_price',
 	'.price',
-	'.match_subtitle',
+	'.match_price',
 	'.game_area_dlc_price',
 	'.savings.bundle_savings',
 	'.wallet_column',
@@ -182,6 +182,8 @@ function addStyles(): void {
 		}
 		.discount_block .scc-hint,
 		[class*=StoreSalePriceWidgetContainer] .scc-hint { display: inline-block; }
+		/* narrow instant-search dropdown: put the hint on its own line */
+		.match_price .scc-hint { display: block; margin-left: 0; }
 		.tab_item_discount { width: 190px !important; }
 		.home_marketing_message.small .discount_block { height: auto !important; }
 		.curator #RecommendationsRows .store_capsule.price_inline .discount_block { min-width: 220px !important; }
