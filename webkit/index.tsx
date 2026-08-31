@@ -294,34 +294,12 @@ function detectCurrencyFromWallet(): { abbr: string; sign: string } | null {
 	return null;
 }
 
-function detectCurrencyFromFormatter(): { abbr: string; sign: string } | null {
-	try {
-		const g = window as unknown as { GStoreItemData?: { fnFormatCurrency?: (v: number) => string } };
-		const fn = g.GStoreItemData?.fnFormatCurrency;
-		if (typeof fn === 'function') {
-			const formatted = String(fn(12345));
-			const sign = formatted.replace(/[\d\s .,'’]+/g, '').trim();
-			if (sign) {
-				const abbr =
-					SIGN_TO_CURRENCY[sign] ||
-					STEAM_CURRENCIES.find((c) => c.symbol === sign)?.abbr ||
-					null;
-				if (abbr) return { abbr, sign };
-			}
-		}
-	} catch (error) {
-		log('formatter detect failed', error);
-	}
-	return null;
-}
-
+// Source currency is only ever taken from the two unambiguous sources: the
+// wallet id and the schema.org priceCurrency meta. A symbol-based guess is
+// deliberately not used — ¥ is JPY *and* CNY, kr is NOK *and* SEK, etc., and a
+// silently wrong rate is worse than not converting.
 function detectCurrentCurrency(): { abbr: string; sign: string | null } | null {
-	return (
-		detectCurrencyFromMeta() ||
-		detectCurrencyFromWallet() ||
-		detectCurrencyFromFormatter() ||
-		null
-	);
+	return detectCurrencyFromWallet() || detectCurrencyFromMeta() || null;
 }
 
 function formatTarget(value: number): string {
