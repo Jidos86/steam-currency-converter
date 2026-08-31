@@ -1,3 +1,17 @@
+/**
+ * Steam Currency to RUB — webkit module (Millennium).
+ *
+ * Hand-authored, no build step: Millennium loads this file directly for
+ * loose-file plugins from `.millennium/Dist/webkit.js` and injects it into
+ * Steam page contexts with Page.setBypassCSP, so it works even where the
+ * store's CSP would block an external <script> (e.g. Steam China).
+ *
+ * Only DOM APIs + textContent are used to render the RUB hint — no innerHTML,
+ * no eval, no remote code. Network access is limited to public exchange-rate
+ * JSON endpoints listed in fetchRates().
+ *
+ * Fork of https://github.com/KuroKim/steam-currency-to-rub (MIT).
+ */
 (() => {
     'use strict';
 
@@ -145,6 +159,13 @@
 
     function findCurrencyById(id) {
         return steamCurrencies.find((item) => item.id === id) || null;
+    }
+
+    function makeSpan(className, text) {
+        const span = document.createElement('span');
+        span.className = className;
+        span.textContent = text;
+        return span;
     }
 
     function addStyles() {
@@ -417,8 +438,7 @@
         const price = parsePrice(element);
         if (!price) return;
 
-        const converted = formatRub(price / rubRate);
-        const convertedHtml = `≈${converted.replace(/ /g, '&nbsp;')}`;
+        const convertedText = `≈${formatRub(price / rubRate)}`;
 
         let inline = forceInline;
 
@@ -439,18 +459,16 @@
             inline = true;
         }
 
+        // Только DOM API + textContent — никакого innerHTML.
         if (inline) {
-            element.innerHTML = `${element.innerHTML} <span class="steam-rub-inline">(${convertedHtml})</span>`;
+            element.append(' ', makeSpan('steam-rub-inline', `(${convertedText})`));
         } else {
-            const originalText = (element.innerText || element.textContent || '')
-                .replace('ARS$ ', '$')
-                .trim()
-                .replace(/ /g, '&nbsp;');
-
-            element.innerHTML = `
-                <span class="steam-rub-original">${originalText}</span>
-                <span class="steam-rub-block">${convertedHtml}</span>
-            `;
+            const originalText = (element.textContent || '').replace('ARS$ ', '$').trim();
+            element.textContent = '';
+            element.append(
+                makeSpan('steam-rub-original', originalText),
+                makeSpan('steam-rub-block', convertedText)
+            );
         }
 
         element.setAttribute('data-steam-rub-done', '1');
