@@ -593,6 +593,37 @@ function scanInventoryPrices(root: Document | HTMLElement): void {
 	}
 }
 
+// New Steam UI widgets (recommendations, feeds, capsules) are React with
+// hashed class names, but the price is always a leaf element whose text is
+// exactly a price in the wallet currency. Convert those directly.
+const BARE_PRICE_RE = /^[^\p{L}\n]*$/u;
+
+function scanBarePrices(root: Document | HTMLElement): void {
+	if (!sourceCurrencySign) return;
+	const sign = sourceCurrencySign;
+	const scope = root instanceof Element ? root : document.body;
+
+	let leaves: NodeListOf<HTMLElement>;
+	try {
+		leaves = scope.querySelectorAll<HTMLElement>(
+			'span:not(:has(*)):not([data-scc-done]), div:not(:has(*)):not([data-scc-done]), p:not(:has(*)):not([data-scc-done])',
+		);
+	} catch {
+		return; // :has unsupported
+	}
+
+	for (const el of Array.from(leaves)) {
+		const t = (el.textContent || '').trim();
+		if (t.length < 2 || t.length > 18 || !t.includes(sign) || !/\d/.test(t)) continue;
+		if (!BARE_PRICE_RE.test(t.split(sign).join(' '))) continue; // sign + number, no words
+		try {
+			injectPrice(el, false);
+		} catch (error) {
+			log('bare price inject error', error, el);
+		}
+	}
+}
+
 function runInjection(root: Document | HTMLElement = document): void {
 	if (!sourceCurrency || rate == null) return;
 
@@ -610,6 +641,7 @@ function runInjection(root: Document | HTMLElement = document): void {
 	scanLooseCartPrices(root);
 	scanInventoryPrices(root);
 	scanSearchSuggest(root);
+	scanBarePrices(root);
 }
 
 let followupTimer = 0;
