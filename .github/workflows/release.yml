@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build plugin zip
+        run: |
+          set -eu
+          name="steam-currency-to-rub"
+          staging="dist/${name}"
+          mkdir -p "$staging/.millennium/Dist"
+          cp plugin.json README.md LICENSE "$staging/"
+          cp .millennium/Dist/webkit.js "$staging/.millennium/Dist/webkit.js"
+          (cd dist && zip -r "../${name}.zip" "${name}")
+          ls -la "${name}.zip"
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: steam-currency-to-rub.zip
+          generate_release_notes: true
+
+      - name: Upload as artifact
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: steam-currency-to-rub
+          path: steam-currency-to-rub.zip

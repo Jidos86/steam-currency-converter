@@ -1,66 +1,40 @@
+﻿<#
+.SYNOPSIS
+    Удаляет плагин "Steam Currency to RUB" из Millennium.
+.EXAMPLE
+    .\scripts\uninstall.ps1
+#>
 [CmdletBinding()]
 param(
-    [string]$SteamPath = "C:\Program Files (x86)\Steam"
+    [string]$SteamPath
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\_common.ps1"
 
-function Get-RepoRoot {
-    return (Split-Path -Path $PSScriptRoot -Parent)
-}
+$steam = Get-SteamPath -Override $SteamPath
+Write-Info "Steam: $steam"
 
-function Get-RepoName {
-    param([string]$RepoRoot)
-    return (Split-Path -Path $RepoRoot -Leaf)
-}
-
-function Get-JsSourceFile {
-    param([string]$RepoRoot)
-
-    $steamUiDir = Join-Path $RepoRoot "steamui"
-    if (-not (Test-Path $steamUiDir)) {
-        throw "Не найдена папка steamui: $steamUiDir"
-    }
-
-    $jsFiles = Get-ChildItem -Path $steamUiDir -Filter *.js -File
-    if ($jsFiles.Count -eq 0) {
-        throw "В папке steamui нет ни одного .js файла"
-    }
-    if ($jsFiles.Count -gt 1) {
-        throw "В папке steamui больше одного .js файла. Оставь один."
-    }
-
-    return $jsFiles[0]
-}
-
-function Remove-TargetIfExists {
-    param([string]$PathToRemove)
-
-    if (Test-Path $PathToRemove) {
-        Remove-Item -Path $PathToRemove -Recurse -Force
-        Write-Host "Удалено: $PathToRemove" -ForegroundColor Yellow
-    }
-    else {
-        Write-Host "Не найдено, пропускаю: $PathToRemove" -ForegroundColor DarkYellow
+$removedAny = $false
+foreach ($base in @(
+    (Join-Path $steam 'millennium\plugins'),
+    (Join-Path $env:USERPROFILE '.millennium\plugins'),
+    (Join-Path $steam 'plugins'),
+    (Join-Path $steam 'steamui')
+)) {
+    foreach ($name in @($script:PluginFolder, 'steam-currency-to-rub-main', 'steam_currency_to_rub.js')) {
+        $p = Join-Path $base $name
+        if (Test-Path $p) {
+            Remove-Item -Path $p -Recurse -Force
+            Write-Warn2 "Удалено: $p"
+            $removedAny = $true
+        }
     }
 }
 
-$repoRoot = Get-RepoRoot
-$repoName = Get-RepoName -RepoRoot $repoRoot
-$jsSource = Get-JsSourceFile -RepoRoot $repoRoot
+if (-not $removedAny) { Write-Warn2 "Файлы плагина не найдены — возможно, уже удалён." }
 
-$pluginTarget = Join-Path (Join-Path $SteamPath "plugins") $repoName
-$jsTarget = Join-Path (Join-Path $SteamPath "steamui") $jsSource.Name
-
-Write-Host "== Steam plugin uninstall ==" -ForegroundColor Cyan
-Write-Host "Repo name     : $repoName"
-Write-Host "Plugin target : $pluginTarget"
-Write-Host "JS target     : $jsTarget"
-Write-Host ""
-
-Remove-TargetIfExists -PathToRemove $pluginTarget
-Remove-TargetIfExists -PathToRemove $jsTarget
+Set-PluginEnabled -SteamPath $steam -Name $script:PluginName -Enabled $false
 
 Write-Host ""
-Write-Host "Готово. Плагин удалён." -ForegroundColor Green
-Write-Host "Перезапусти Steam."
+Write-Ok "Готово. Перезапусти Steam."

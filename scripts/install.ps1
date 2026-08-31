@@ -1,93 +1,43 @@
+﻿<#
+.SYNOPSIS
+    Устанавливает плагин "Steam Currency to RUB" в Millennium (копирование файлов).
+.EXAMPLE
+    .\scripts\install.ps1
+.EXAMPLE
+    .\scripts\install.ps1 -SteamPath "D:\Steam"
+#>
 [CmdletBinding()]
 param(
-    [string]$SteamPath = "C:\Program Files (x86)\Steam"
+    [string]$SteamPath
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\_common.ps1"
 
-function Get-RepoRoot {
-    return (Split-Path -Path $PSScriptRoot -Parent)
+$repoRoot = Split-Path -Path $PSScriptRoot -Parent
+if (-not (Test-Path (Join-Path $repoRoot 'plugin.json'))) {
+    throw "plugin.json не найден в $repoRoot — запусти скрипт из папки репозитория."
+}
+if (-not (Test-Path (Join-Path $repoRoot '.millennium\Dist\webkit.js'))) {
+    throw ".millennium\Dist\webkit.js не найден — репозиторий скачан не полностью."
 }
 
-function Get-RepoName {
-    param([string]$RepoRoot)
-    return (Split-Path -Path $RepoRoot -Leaf)
+$steam = Get-SteamPath -Override $SteamPath
+Write-Info "Steam:      $steam"
+
+if (-not (Test-MillenniumInstalled -SteamPath $steam)) {
+    Write-Warn2 "Millennium не обнаружен. Поставь его с https://steambrew.app и запусти установку снова."
 }
 
-function Get-JsSourceFile {
-    param([string]$RepoRoot)
+$pluginsDir = Get-PluginsDir -SteamPath $steam -CreateIfMissing
+$target     = Join-Path $pluginsDir $script:PluginFolder
+Write-Info "Плагины:    $pluginsDir"
+Write-Info "Цель:       $target"
 
-    $steamUiDir = Join-Path $RepoRoot "steamui"
-    if (-not (Test-Path $steamUiDir)) {
-        throw "Не найдена папка steamui: $steamUiDir"
-    }
+Copy-PluginFiles -RepoRoot $repoRoot -Target $target
+Write-Ok "Файлы плагина скопированы."
 
-    $jsFiles = Get-ChildItem -Path $steamUiDir -Filter *.js -File
-    if ($jsFiles.Count -eq 0) {
-        throw "В папке steamui нет ни одного .js файла"
-    }
-    if ($jsFiles.Count -gt 1) {
-        throw "В папке steamui больше одного .js файла. Оставь один."
-    }
-
-    return $jsFiles[0]
-}
-
-function Remove-TargetIfExists {
-    param([string]$PathToRemove)
-
-    if (Test-Path $PathToRemove) {
-        Remove-Item -Path $PathToRemove -Recurse -Force
-    }
-}
-
-$repoRoot = Get-RepoRoot
-$repoName = Get-RepoName -RepoRoot $repoRoot
-$jsSource = Get-JsSourceFile -RepoRoot $repoRoot
-
-$pluginJson = Join-Path $repoRoot "plugin.json"
-$backendDir = Join-Path $repoRoot "backend"
-
-if (-not (Test-Path $pluginJson)) {
-    throw "Не найден plugin.json: $pluginJson"
-}
-if (-not (Test-Path $backendDir)) {
-    throw "Не найдена папка backend: $backendDir"
-}
-
-$pluginsDir = Join-Path $SteamPath "plugins"
-$steamUiDir = Join-Path $SteamPath "steamui"
-
-if (-not (Test-Path $pluginsDir)) {
-    throw "Не найдена папка Steam plugins: $pluginsDir"
-}
-if (-not (Test-Path $steamUiDir)) {
-    throw "Не найдена папка Steam steamui: $steamUiDir"
-}
-
-$pluginTarget = Join-Path $pluginsDir $repoName
-$jsTarget = Join-Path $steamUiDir $jsSource.Name
-
-Write-Host "== Steam plugin install ==" -ForegroundColor Cyan
-Write-Host "Repo root     : $repoRoot"
-Write-Host "Repo name     : $repoName"
-Write-Host "Plugin target : $pluginTarget"
-Write-Host "JS source     : $($jsSource.FullName)"
-Write-Host "JS target     : $jsTarget"
-Write-Host ""
-
-Remove-TargetIfExists -PathToRemove $pluginTarget
-Remove-TargetIfExists -PathToRemove $jsTarget
-
-New-Item -ItemType Directory -Path $pluginTarget -Force | Out-Null
-
-# Копируем всё содержимое репы в папку плагина Steam.
-# Скрытые .git-папки через wildcard обычно не копируются, и это нам на руку.
-Copy-Item -Path (Join-Path $repoRoot "*") -Destination $pluginTarget -Recurse -Force
-
-# Отдельно копируем JS-модуль туда, где его реально ищет Millennium.
-Copy-Item -Path $jsSource.FullName -Destination $jsTarget -Force
+Set-PluginEnabled -SteamPath $steam -Name $script:PluginName -Enabled $true
 
 Write-Host ""
-Write-Host "Готово. Плагин установлен." -ForegroundColor Green
-Write-Host "Перезапусти Steam или выключи/включи плагин в Millennium Settings -> Plugins."
+Write-Ok "Готово. Полностью перезапусти Steam (трей -> Выход), затем открой магазин."

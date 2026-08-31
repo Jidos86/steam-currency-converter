@@ -1,91 +1,49 @@
+﻿<#
+.SYNOPSIS
+    Dev-режим: делает симлинк из этого репозитория в папку плагинов Millennium.
+    Правишь файлы в репе — Steam видит изменения сразу (после перезапуска/reload плагина).
+.NOTES
+    Нужны права администратора ИЛИ включённый Developer Mode в Windows.
+.EXAMPLE
+    .\scripts\dev-link.ps1
+#>
 [CmdletBinding()]
 param(
-    [string]$SteamPath = "C:\Program Files (x86)\Steam"
+    [string]$SteamPath
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\_common.ps1"
 
-function Get-RepoRoot {
-    return (Split-Path -Path $PSScriptRoot -Parent)
+$repoRoot = Split-Path -Path $PSScriptRoot -Parent
+if (-not (Test-Path (Join-Path $repoRoot 'plugin.json'))) {
+    throw "plugin.json не найден в $repoRoot."
 }
 
-function Get-RepoName {
-    param([string]$RepoRoot)
-    return (Split-Path -Path $RepoRoot -Leaf)
-}
+$steam      = Get-SteamPath -Override $SteamPath
+$pluginsDir = Get-PluginsDir -SteamPath $steam -CreateIfMissing
+$target     = Join-Path $pluginsDir $script:PluginFolder
 
-function Get-JsSourceFile {
-    param([string]$RepoRoot)
+Write-Info "Steam:   $steam"
+Write-Info "Симлинк: $target  ->  $repoRoot"
 
-    $steamUiDir = Join-Path $RepoRoot "steamui"
-    if (-not (Test-Path $steamUiDir)) {
-        throw "Не найдена папка steamui: $steamUiDir"
-    }
-
-    $jsFiles = Get-ChildItem -Path $steamUiDir -Filter *.js -File
-    if ($jsFiles.Count -eq 0) {
-        throw "В папке steamui нет ни одного .js файла"
-    }
-    if ($jsFiles.Count -gt 1) {
-        throw "В папке steamui больше одного .js файла. Оставь один."
-    }
-
-    return $jsFiles[0]
-}
-
-function Remove-TargetIfExists {
-    param([string]$PathToRemove)
-
-    if (Test-Path $PathToRemove) {
-        Remove-Item -Path $PathToRemove -Recurse -Force
-    }
-}
-
-$repoRoot = Get-RepoRoot
-$repoName = Get-RepoName -RepoRoot $repoRoot
-$jsSource = Get-JsSourceFile -RepoRoot $repoRoot
-
-$pluginsDir = Join-Path $SteamPath "plugins"
-$steamUiDir = Join-Path $SteamPath "steamui"
-
-if (-not (Test-Path $pluginsDir)) {
-    throw "Не найдена папка Steam plugins: $pluginsDir"
-}
-if (-not (Test-Path $steamUiDir)) {
-    throw "Не найдена папка Steam steamui: $steamUiDir"
-}
-
-$pluginTarget = Join-Path $pluginsDir $repoName
-$jsTarget = Join-Path $steamUiDir $jsSource.Name
-
-Write-Host "== Steam plugin dev-link ==" -ForegroundColor Cyan
-Write-Host "Repo root     : $repoRoot"
-Write-Host "Repo name     : $repoName"
-Write-Host "Plugin link   : $pluginTarget -> $repoRoot"
-Write-Host "JS link       : $jsTarget -> $($jsSource.FullName)"
-Write-Host ""
-
-Remove-TargetIfExists -PathToRemove $pluginTarget
-Remove-TargetIfExists -PathToRemove $jsTarget
+if (Test-Path $target) { Remove-Item -Path $target -Recurse -Force }
 
 try {
-    New-Item -ItemType SymbolicLink -Path $pluginTarget -Target $repoRoot | Out-Null
-    New-Item -ItemType SymbolicLink -Path $jsTarget -Target $jsSource.FullName | Out-Null
-}
-catch {
+    New-Item -ItemType SymbolicLink -Path $target -Target $repoRoot | Out-Null
+} catch {
     throw @"
-Не удалось создать symbolic links.
+Не удалось создать симлинк.
 
-Что проверить:
-1. PowerShell запущен от имени администратора
-2. Или в Windows включён Developer Mode
-3. У тебя есть права на запись в: $SteamPath
+Проверь:
+  1. PowerShell запущен от имени администратора, ИЛИ
+  2. в Windows включён Developer Mode (Параметры -> Для разработчиков)
 
-Исходная ошибка:
-$($_.Exception.Message)
+Исходная ошибка: $($_.Exception.Message)
 "@
 }
 
-Write-Host "Готово. Симлинки созданы." -ForegroundColor Green
-Write-Host "Теперь правишь файлы в репе, а Steam использует их напрямую."
-Write-Host "Если Steam уже запущен — перезапусти его или переинициализируй плагин."
+Set-PluginEnabled -SteamPath $steam -Name $script:PluginName -Enabled $true
+
+Write-Host ""
+Write-Ok "Симлинк создан. Перезапусти Steam."

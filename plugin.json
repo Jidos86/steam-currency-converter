@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/SteamClientHomebrew/Millennium/main/src/sys/plugin-schema.json",
   "name": "steam_currency_to_rub",
   "common_name": "Steam Currency to RUB",
-  "description": "Shows approximate RUB prices next to supported Steam prices.",
-  "backendType": "lua"
+  "description": "Shows an approximate RUB price next to any Steam price (store, cart, checkout, overlay).",
+  "version": "2.0.0",
+  "useBackend": false
 }
