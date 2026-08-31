@@ -125,10 +125,8 @@ const SELECTORS = [
 	'.market_listing_price_with_fee',
 	'.market_activity_price',
 	'.item_market_actions > div > div:nth-child(2)',
-	// Inventory item panel ("Начальная цена: ¥ …")
+	// Inventory item panel (legacy layout)
 	'.item_market_actions > div',
-	'[id*=item_market_actions] > div',
-	'[class*=item_market_actions] > div',
 	'.market_commodity_orders_header_promote',
 	// Cart / checkout
 	'.cart_area_summary_final_price',
@@ -525,6 +523,33 @@ function scanLooseCartPrices(root: Document | HTMLElement): void {
 	}
 }
 
+// The React inventory has fully hashed class names. Anchor on the stable
+// "market/listings" link and convert the price line(s) next to it.
+function scanInventoryPrices(root: Document | HTMLElement): void {
+	if (!sourceCurrencySign || !location.pathname.includes('/inventory')) return;
+	const sign = sourceCurrencySign;
+	const scope = root instanceof Element ? root : document;
+
+	for (const link of Array.from(scope.querySelectorAll<HTMLAnchorElement>('a[href*="/market/listings/"]'))) {
+		const container = link.parentElement;
+		if (!container) continue;
+		for (const div of Array.from(container.querySelectorAll<HTMLElement>('div'))) {
+			if (
+				div.childElementCount === 0 &&
+				!div.hasAttribute('data-scc-done') &&
+				(div.textContent || '').includes(sign) &&
+				/\d/.test(div.textContent || '')
+			) {
+				try {
+					injectPrice(div, true);
+				} catch (error) {
+					log('inventory inject error', error, div);
+				}
+			}
+		}
+	}
+}
+
 function runInjection(root: Document | HTMLElement = document): void {
 	if (!sourceCurrency || rate == null) return;
 
@@ -540,6 +565,7 @@ function runInjection(root: Document | HTMLElement = document): void {
 		}
 	}
 	scanLooseCartPrices(root);
+	scanInventoryPrices(root);
 }
 
 function scheduleInjection(): void {
