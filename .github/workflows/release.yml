@@ -18,7 +18,7 @@ jobs:
       - name: Build plugin zip
         run: |
           set -eu
-          name="steam-currency-to-rub"
+          name="steam-currency-converter"
           staging="dist/${name}"
           mkdir -p "$staging/.millennium/Dist"
           cp plugin.json README.md LICENSE "$staging/"
@@ -30,12 +30,12 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: steam-currency-to-rub.zip
+          files: steam-currency-converter.zip
           generate_release_notes: true
 
       - name: Upload as artifact
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4
         with:
-          name: steam-currency-to-rub
-          path: steam-currency-to-rub.zip
+          name: steam-currency-converter
+          path: steam-currency-converter.zip

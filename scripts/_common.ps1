@@ -1,8 +1,8 @@
 ﻿# Shared helpers for install / uninstall / dev-link scripts.
 # Dot-source this file: . "$PSScriptRoot\_common.ps1"
 
-$script:PluginName   = 'steam_currency_to_rub'   # must match plugin.json "name"
-$script:PluginFolder = 'steam-currency-to-rub'   # folder name inside the plugins dir
+$script:PluginName   = 'steam_currency_converter'   # must match plugin.json "name"
+$script:PluginFolder = 'steam-currency-converter'   # folder name inside the plugins dir
 
 function Write-Info  { param($m) Write-Host $m -ForegroundColor Cyan }
 function Write-Ok    { param($m) Write-Host $m -ForegroundColor Green }

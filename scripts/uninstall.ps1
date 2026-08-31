@@ -22,7 +22,7 @@ foreach ($base in @(
     (Join-Path $steam 'plugins'),
     (Join-Path $steam 'steamui')
 )) {
-    foreach ($name in @($script:PluginFolder, 'steam-currency-to-rub-main', 'steam_currency_to_rub.js')) {
+    foreach ($name in @($script:PluginFolder, 'steam-currency-to-rub', 'steam-currency-to-rub-main', 'steam_currency_to_rub.js')) {
         $p = Join-Path $base $name
         if (Test-Path $p) {
             Remove-Item -Path $p -Recurse -Force
@@ -35,6 +35,7 @@ foreach ($base in @(
 if (-not $removedAny) { Write-Warn2 "Файлы плагина не найдены — возможно, уже удалён." }
 
 Set-PluginEnabled -SteamPath $steam -Name $script:PluginName -Enabled $false
+Set-PluginEnabled -SteamPath $steam -Name 'steam_currency_to_rub' -Enabled $false  # старый id
 
 Write-Host ""
 Write-Ok "Готово. Перезапусти Steam."

@@ -2,11 +2,11 @@
 .SYNOPSIS
     Онлайн-установка одной командой. Скачивает репозиторий и запускает install.ps1.
 .EXAMPLE
-    irm https://raw.githubusercontent.com/Jidos86/steam-currency-to-rub/main/scripts/web-install.ps1 | iex
+    irm https://raw.githubusercontent.com/Jidos86/steam-currency-converter/main/scripts/web-install.ps1 | iex
 #>
 [CmdletBinding()]
 param(
-    [string]$Repo   = 'Jidos86/steam-currency-to-rub',
+    [string]$Repo   = 'Jidos86/steam-currency-converter',
     [string]$Ref    = 'main',
     [string]$SteamPath
 )
