@@ -1,5 +1,5 @@
 /**
- * Steam Currency to RUB — webkit module (Millennium).
+ * Steam Currency Converter — webkit module (Millennium).
  *
  * Hand-authored, no build step: Millennium loads this file directly for
  * loose-file plugins from `.millennium/Dist/webkit.js` and injects it into
@@ -154,7 +154,7 @@
     let injectScheduled = false;
 
     function log(...args) {
-        console.log('[Steam Currency to RUB]', ...args);
+        console.log('[Steam Currency Converter]', ...args);
     }
 
     function findCurrencyById(id) {
