@@ -5,7 +5,8 @@
  * the plugin config; the lua backend reads it back and hands it to the
  * webkit module (see backend/main.lua -> get_settings).
  */
-import { Dropdown, Field, IconsModule, definePlugin, usePluginConfig } from '@steambrew/client';
+import { Dropdown, Field, IconsModule, definePlugin, pluginConfig } from '@steambrew/client';
+import { useEffect, useState } from 'react';
 
 const DEFAULT_TARGET = 'RUB';
 
@@ -55,9 +56,33 @@ const TARGET_CURRENCIES: { code: string; name: string }[] = [
 
 const OPTIONS = TARGET_CURRENCIES.map((c) => ({ data: c.code, label: `${c.name} (${c.code})` }));
 
+const KNOWN_CODES = new Set(TARGET_CURRENCIES.map((c) => c.code));
+
 const SettingsContent = () => {
-	const [target, setTarget] = usePluginConfig<string>('target_currency');
-	const selected = target ?? DEFAULT_TARGET;
+	const [selected, setSelected] = useState<string>(DEFAULT_TARGET);
+
+	useEffect(() => {
+		let cancelled = false;
+		void pluginConfig
+			.get<string>('target_currency')
+			.then((value) => {
+				if (cancelled) return;
+				const code = typeof value === 'string' ? value.toUpperCase() : '';
+				if (KNOWN_CODES.has(code)) setSelected(code);
+			})
+			.catch(() => {
+				/* keep default */
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+
+	const handleChange = (code: string) => {
+		if (!KNOWN_CODES.has(code)) return;
+		setSelected(code);
+		void pluginConfig.set('target_currency', code);
+	};
 
 	return (
 		<div style={{ padding: '16px' }}>
@@ -71,9 +96,7 @@ const SettingsContent = () => {
 				<Dropdown
 					rgOptions={OPTIONS}
 					selectedOption={selected}
-					onChange={(option) => {
-						void setTarget(String(option.data));
-					}}
+					onChange={(option) => handleChange(String(option.data))}
 				/>
 			</Field>
 		</div>
