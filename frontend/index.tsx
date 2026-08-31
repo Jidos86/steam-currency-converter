@@ -1,85 +1,95 @@
 /**
  * Steam Currency Converter — settings panel.
  *
- * A single dropdown that picks the target currency. The value is stored in
- * the plugin config; the lua backend reads it back and hands it to the
- * webkit module (see backend/main.lua -> get_settings).
+ * The chosen currency lives in the lua backend (millennium.config). This
+ * panel reads it via the `get_settings` callable and writes it via
+ * `set_target_currency` — the same IPC path the webkit module uses, since
+ * usePluginConfig / pluginConfig were unreliable in this Millennium build.
  */
-import { Dropdown, Field, IconsModule, definePlugin, pluginConfig, usePluginConfig } from '@steambrew/client';
+import { Dropdown, Field, IconsModule, callable, definePlugin } from '@steambrew/client';
 import { useEffect, useState } from 'react';
 
 const DEFAULT_TARGET = 'RUB';
 
-/** Every Steam wallet currency, usable as a conversion target. */
+/** Every Steam wallet currency, usable as a conversion target. Sorted by name. */
 const TARGET_CURRENCIES: { code: string; name: string }[] = [
-	{ code: 'RUB', name: 'Russian ruble' },
-	{ code: 'USD', name: 'US dollar' },
-	{ code: 'EUR', name: 'Euro' },
-	{ code: 'GBP', name: 'Pound sterling' },
-	{ code: 'CHF', name: 'Swiss franc' },
-	{ code: 'PLN', name: 'Polish złoty' },
-	{ code: 'BRL', name: 'Brazilian real' },
-	{ code: 'JPY', name: 'Japanese yen' },
-	{ code: 'NOK', name: 'Norwegian krone' },
-	{ code: 'IDR', name: 'Indonesian rupiah' },
-	{ code: 'MYR', name: 'Malaysian ringgit' },
-	{ code: 'PHP', name: 'Philippine peso' },
-	{ code: 'SGD', name: 'Singapore dollar' },
-	{ code: 'THB', name: 'Thai baht' },
-	{ code: 'VND', name: 'Vietnamese dong' },
-	{ code: 'KRW', name: 'South Korean won' },
-	{ code: 'TRY', name: 'Turkish lira' },
-	{ code: 'UAH', name: 'Ukrainian hryvnia' },
-	{ code: 'MXN', name: 'Mexican peso' },
-	{ code: 'CAD', name: 'Canadian dollar' },
-	{ code: 'AUD', name: 'Australian dollar' },
-	{ code: 'CNY', name: 'Chinese yuan' },
-	{ code: 'INR', name: 'Indian rupee' },
-	{ code: 'CLP', name: 'Chilean peso' },
-	{ code: 'PEN', name: 'Peruvian sol' },
-	{ code: 'COP', name: 'Colombian peso' },
-	{ code: 'ZAR', name: 'South African rand' },
-	{ code: 'HKD', name: 'Hong Kong dollar' },
-	{ code: 'TWD', name: 'New Taiwan dollar' },
-	{ code: 'SAR', name: 'Saudi riyal' },
-	{ code: 'AED', name: 'UAE dirham' },
-	{ code: 'SEK', name: 'Swedish krona' },
 	{ code: 'ARS', name: 'Argentine peso' },
-	{ code: 'ILS', name: 'Israeli shekel' },
+	{ code: 'AUD', name: 'Australian dollar' },
 	{ code: 'BYN', name: 'Belarusian ruble' },
+	{ code: 'BRL', name: 'Brazilian real' },
+	{ code: 'CAD', name: 'Canadian dollar' },
+	{ code: 'CLP', name: 'Chilean peso' },
+	{ code: 'CNY', name: 'Chinese yuan' },
+	{ code: 'COP', name: 'Colombian peso' },
+	{ code: 'CRC', name: 'Costa Rican colón' },
+	{ code: 'EUR', name: 'Euro' },
+	{ code: 'HKD', name: 'Hong Kong dollar' },
+	{ code: 'INR', name: 'Indian rupee' },
+	{ code: 'IDR', name: 'Indonesian rupiah' },
+	{ code: 'ILS', name: 'Israeli shekel' },
+	{ code: 'JPY', name: 'Japanese yen' },
 	{ code: 'KZT', name: 'Kazakhstani tenge' },
 	{ code: 'KWD', name: 'Kuwaiti dinar' },
+	{ code: 'MYR', name: 'Malaysian ringgit' },
+	{ code: 'MXN', name: 'Mexican peso' },
+	{ code: 'TWD', name: 'New Taiwan dollar' },
+	{ code: 'NZD', name: 'New Zealand dollar' },
+	{ code: 'NOK', name: 'Norwegian krone' },
+	{ code: 'PEN', name: 'Peruvian sol' },
+	{ code: 'PHP', name: 'Philippine peso' },
+	{ code: 'PLN', name: 'Polish złoty' },
+	{ code: 'GBP', name: 'Pound sterling' },
 	{ code: 'QAR', name: 'Qatari riyal' },
-	{ code: 'CRC', name: 'Costa Rican colón' },
+	{ code: 'RUB', name: 'Russian ruble' },
+	{ code: 'SAR', name: 'Saudi riyal' },
+	{ code: 'SGD', name: 'Singapore dollar' },
+	{ code: 'ZAR', name: 'South African rand' },
+	{ code: 'KRW', name: 'South Korean won' },
+	{ code: 'SEK', name: 'Swedish krona' },
+	{ code: 'CHF', name: 'Swiss franc' },
+	{ code: 'THB', name: 'Thai baht' },
+	{ code: 'TRY', name: 'Turkish lira' },
+	{ code: 'AED', name: 'UAE dirham' },
+	{ code: 'UAH', name: 'Ukrainian hryvnia' },
+	{ code: 'USD', name: 'US dollar' },
 	{ code: 'UYU', name: 'Uruguayan peso' },
-];
+	{ code: 'VND', name: 'Vietnamese dong' },
+].sort((a, b) => a.name.localeCompare(b.name));
 
 const OPTIONS = TARGET_CURRENCIES.map((c) => ({ data: c.code, label: `${c.name} (${c.code})` }));
-
 const KNOWN_CODES = new Set(TARGET_CURRENCIES.map((c) => c.code));
 
-const normalizeCode = (value: unknown): string | null => {
-	const code = typeof value === 'string' ? value.toUpperCase() : '';
-	return KNOWN_CODES.has(code) ? code : null;
-};
+const getSettings = callable<[], string>('get_settings');
+const setTargetCurrency = callable<[{ currency: string }], string>('set_target_currency');
+
+function parseTarget(raw: string): string | null {
+	try {
+		const value = (JSON.parse(raw) as { target_currency?: unknown }).target_currency;
+		const code = typeof value === 'string' ? value.toUpperCase() : '';
+		return KNOWN_CODES.has(code) ? code : null;
+	} catch {
+		return null;
+	}
+}
 
 const SettingsContent = () => {
-	// `usePluginConfig`'s setter persists reliably; its returned value does not
-	// update in this Millennium build, so we keep our own state.
-	const [, persist] = usePluginConfig<string>('target_currency');
-	// null = still loading the saved value.
+	// null = still loading the saved value from the backend.
 	const [selected, setSelected] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
-		const settle = (value: unknown) => {
-			if (!cancelled) setSelected(normalizeCode(value) ?? DEFAULT_TARGET);
-		};
-		try {
-			Promise.resolve(pluginConfig.get<string>('target_currency')).then(settle, () => settle(null));
-		} catch {
-			settle(null);
-		}
+		void (async () => {
+			for (let attempt = 0; attempt < 6 && !cancelled; attempt++) {
+				try {
+					const code = parseTarget(await getSettings());
+					if (!cancelled) setSelected(code ?? DEFAULT_TARGET);
+					return;
+				} catch {
+					await new Promise((r) => setTimeout(r, 500));
+				}
+			}
+			if (!cancelled) setSelected(DEFAULT_TARGET);
+		})();
 		return () => {
 			cancelled = true;
 		};
@@ -88,8 +98,8 @@ const SettingsContent = () => {
 	const handleChange = (code: string) => {
 		if (!KNOWN_CODES.has(code)) return;
 		setSelected(code); // optimistic — local state drives the UI
-		void Promise.resolve(persist(code)).catch((e: unknown) => {
-			console.error('[Steam Currency Converter] failed to save target_currency', e);
+		void setTargetCurrency({ currency: code }).catch((e: unknown) => {
+			console.error('[Steam Currency Converter] failed to save target currency', e);
 		});
 	};
 
@@ -103,9 +113,8 @@ const SettingsContent = () => {
 				bottomSeparator="none"
 			>
 				{selected !== null && (
-					// Steam's Dropdown is a class component that keeps its own
-					// selection state and ignores `selectedOption` prop updates
-					// after mount — remount it via `key` when the value changes.
+					// Steam's Dropdown keeps its own selection state and ignores
+					// `selectedOption` after mount — remount via `key` on change.
 					<Dropdown
 						key={selected}
 						rgOptions={OPTIONS}
@@ -119,8 +128,7 @@ const SettingsContent = () => {
 };
 
 export default definePlugin(() => ({
-	// `title` is required by the ttc runtime to register the settings panel,
-	// even though the current @steambrew/client `Plugin` type omits it.
+	// `title` is required by the ttc runtime to register the settings panel.
 	title: 'Steam Currency Converter',
 	icon: <IconsModule.Settings />,
 	content: <SettingsContent />,

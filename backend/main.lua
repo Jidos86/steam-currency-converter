@@ -4,14 +4,28 @@ local logger = require("logger")
 
 local DEFAULT_TARGET = "RUB"
 
---- Exposed to the webkit module via `callable("get_settings")`.
---- Returns the chosen target currency (falls back to RUB).
-function get_settings()
+local function current_target()
     local target = millennium.config.get("target_currency")
     if type(target) ~= "string" or target == "" then
-        target = DEFAULT_TARGET
+        return DEFAULT_TARGET
     end
-    return json.encode({ target_currency = string.upper(target) })
+    return string.upper(target)
+end
+
+--- Read by the webkit module and the settings panel.
+function get_settings()
+    return json.encode({ target_currency = current_target() })
+end
+
+--- Written by the settings panel. `currency` is an ISO 4217 code.
+function set_target_currency(currency)
+    if type(currency) == "string" and currency:match("^%a%a%a$") then
+        millennium.config.set("target_currency", string.upper(currency))
+        logger:info("Steam Currency Converter: target currency set to " .. string.upper(currency))
+    else
+        logger:warn("Steam Currency Converter: ignored invalid currency " .. tostring(currency))
+    end
+    return get_settings()
 end
 
 local function on_load()
