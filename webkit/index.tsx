@@ -111,6 +111,7 @@ const SELECTORS = [
 	'.search_price',
 	'.price',
 	'.match_subtitle',
+	'.match_price',
 	'.game_area_dlc_price',
 	'.savings.bundle_savings',
 	'.wallet_column',
@@ -186,7 +187,8 @@ function addStyles(): void {
 		.discount_block .scc-hint,
 		[class*=StoreSalePriceWidgetContainer] .scc-hint { display: inline-block; }
 		/* narrow instant-search dropdown: put the hint on its own line */
-		.match_price .scc-hint { display: block; margin-left: 0; }
+		.match_price .scc-hint,
+		[id^=searchSuggestions] .scc-hint { display: block; margin-left: 0; }
 		.tab_item_discount { width: 190px !important; }
 		.home_marketing_message.small .discount_block { height: auto !important; }
 		.curator #RecommendationsRows .store_capsule.price_inline .discount_block { min-width: 220px !important; }
@@ -523,6 +525,35 @@ function scanLooseCartPrices(root: Document | HTMLElement): void {
 	}
 }
 
+// The client's instant-search dropdown is a React component with hashed
+// classes. Anchor on the stable #searchSuggestions… container and each app
+// link, then convert the last price-bearing leaf in the row (the final
+// discounted price comes after the struck original).
+function scanSearchSuggest(root: Document | HTMLElement): void {
+	if (!sourceCurrencySign) return;
+	const sign = sourceCurrencySign;
+	const scope = root instanceof Element ? root : document;
+
+	for (const box of Array.from(scope.querySelectorAll('[id^=searchSuggestions], .search_suggest, #search_suggestion_contents'))) {
+		for (const row of Array.from(box.querySelectorAll<HTMLElement>('a[href*="/app/"], a[href*="/bundle/"], a.match'))) {
+			const leaves = Array.from(row.querySelectorAll<HTMLElement>('*')).filter(
+				(el) =>
+					el.childElementCount === 0 &&
+					(el.textContent || '').includes(sign) &&
+					/\d/.test(el.textContent || ''),
+			);
+			const last = leaves[leaves.length - 1];
+			if (last && !last.hasAttribute('data-scc-done')) {
+				try {
+					injectPrice(last, false);
+				} catch (error) {
+					log('suggest inject error', error, last);
+				}
+			}
+		}
+	}
+}
+
 // The React inventory has fully hashed class names. Anchor on the stable
 // "market/listings" link and convert the price line(s) next to it.
 function scanInventoryPrices(root: Document | HTMLElement): void {
@@ -566,6 +597,7 @@ function runInjection(root: Document | HTMLElement = document): void {
 	}
 	scanLooseCartPrices(root);
 	scanInventoryPrices(root);
+	scanSearchSuggest(root);
 }
 
 function scheduleInjection(): void {
