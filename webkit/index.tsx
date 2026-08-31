@@ -612,13 +612,23 @@ function runInjection(root: Document | HTMLElement = document): void {
 	scanSearchSuggest(root);
 }
 
+let followupTimer = 0;
+
 function scheduleInjection(): void {
-	if (injectScheduled) return;
-	injectScheduled = true;
-	requestAnimationFrame(() => {
-		injectScheduled = false;
+	if (!injectScheduled) {
+		injectScheduled = true;
+		requestAnimationFrame(() => {
+			injectScheduled = false;
+			runInjection(document);
+		});
+	}
+	// Prices often load asynchronously into elements that already exist (the
+	// inventory market price, lazy capsules). Re-scan shortly after the batch.
+	if (followupTimer) clearTimeout(followupTimer);
+	followupTimer = window.setTimeout(() => {
+		followupTimer = 0;
 		runInjection(document);
-	});
+	}, 500);
 }
 
 function startObserver(): void {
@@ -626,7 +636,7 @@ function startObserver(): void {
 	observerStarted = true;
 
 	const observer = new MutationObserver(() => scheduleInjection());
-	observer.observe(document.body, { childList: true, subtree: true });
+	observer.observe(document.body, { childList: true, subtree: true, characterData: true });
 
 	setTimeout(scheduleInjection, 1000);
 	setTimeout(scheduleInjection, 2500);
