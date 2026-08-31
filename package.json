@@ -1,0 +1,20 @@
+{
+  "name": "steam-currency-converter",
+  "version": "3.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shows an approximate price in your chosen currency next to any Steam price.",
+  "scripts": {
+    "dev": "millennium-ttc --build dev",
+    "build": "millennium-ttc --build prod",
+    "typecheck": "tsc --noEmit -p frontend/tsconfig.json && tsc --noEmit -p webkit/tsconfig.json"
+  },
+  "devDependencies": {
+    "@steambrew/client": "^5.8.4",
+    "@steambrew/ttc": "^3.2.6",
+    "@steambrew/webkit": "^5.8.4",
+    "@types/react": "19.1.1",
+    "@types/react-dom": "19.1.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -15,7 +15,11 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Local packaging (anchored to repo root so .millennium/Dist/ is not ignored)
+# Node / build
+node_modules/
+/.millennium/
+
+# Local packaging
 /dist/
 /build/
 /release/
