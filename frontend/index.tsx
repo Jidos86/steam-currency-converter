@@ -5,7 +5,7 @@
  * the plugin config; the lua backend reads it back and hands it to the
  * webkit module (see backend/main.lua -> get_settings).
  */
-import { Dropdown, Field, IconsModule, definePlugin, pluginConfig } from '@steambrew/client';
+import { Dropdown, Field, IconsModule, definePlugin, pluginConfig, usePluginConfig } from '@steambrew/client';
 import { useEffect, useState } from 'react';
 
 const DEFAULT_TARGET = 'RUB';
@@ -58,22 +58,28 @@ const OPTIONS = TARGET_CURRENCIES.map((c) => ({ data: c.code, label: `${c.name} 
 
 const KNOWN_CODES = new Set(TARGET_CURRENCIES.map((c) => c.code));
 
+const normalizeCode = (value: unknown): string | null => {
+	const code = typeof value === 'string' ? value.toUpperCase() : '';
+	return KNOWN_CODES.has(code) ? code : null;
+};
+
 const SettingsContent = () => {
-	// null = still loading the saved value from plugin config.
+	// `usePluginConfig`'s setter persists reliably; its returned value does not
+	// update in this Millennium build, so we keep our own state.
+	const [, persist] = usePluginConfig<string>('target_currency');
+	// null = still loading the saved value.
 	const [selected, setSelected] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
-		void pluginConfig
-			.get<string>('target_currency')
-			.then((value) => {
-				if (cancelled) return;
-				const code = typeof value === 'string' ? value.toUpperCase() : '';
-				setSelected(KNOWN_CODES.has(code) ? code : DEFAULT_TARGET);
-			})
-			.catch(() => {
-				if (!cancelled) setSelected(DEFAULT_TARGET);
-			});
+		const settle = (value: unknown) => {
+			if (!cancelled) setSelected(normalizeCode(value) ?? DEFAULT_TARGET);
+		};
+		try {
+			Promise.resolve(pluginConfig.get<string>('target_currency')).then(settle, () => settle(null));
+		} catch {
+			settle(null);
+		}
 		return () => {
 			cancelled = true;
 		};
@@ -81,8 +87,8 @@ const SettingsContent = () => {
 
 	const handleChange = (code: string) => {
 		if (!KNOWN_CODES.has(code)) return;
-		setSelected(code);
-		void pluginConfig.set('target_currency', code).catch((e) => {
+		setSelected(code); // optimistic — local state drives the UI
+		void Promise.resolve(persist(code)).catch((e: unknown) => {
 			console.error('[Steam Currency Converter] failed to save target_currency', e);
 		});
 	};
