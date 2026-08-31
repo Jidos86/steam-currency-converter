@@ -517,14 +517,55 @@ function startObserver(): void {
 	setTimeout(scheduleInjection, 2500);
 }
 
-async function resolveTargetCurrency(): Promise<string> {
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const TARGET_CACHE_KEY = 'scc_target_currency';
+
+function readCachedTarget(): string | null {
 	try {
-		const parsed = safeParseJSON<{ target_currency?: string }>(await getSettings());
-		const t = parsed?.target_currency;
-		if (typeof t === 'string' && /^[A-Za-z]{3}$/.test(t)) return t.toUpperCase();
-	} catch (error) {
-		log('settings unavailable, defaulting to RUB', error);
+		const v = localStorage.getItem(TARGET_CACHE_KEY);
+		return v && /^[A-Z]{3}$/.test(v) ? v : null;
+	} catch {
+		return null;
 	}
+}
+
+/** Ask the backend for the chosen currency, retrying past the startup race. */
+async function fetchTargetFromBackend(): Promise<string | null> {
+	for (let attempt = 0; attempt < 8; attempt++) {
+		try {
+			const parsed = safeParseJSON<{ target_currency?: string }>(await getSettings());
+			const t = parsed?.target_currency;
+			if (typeof t === 'string' && /^[A-Za-z]{3}$/.test(t)) {
+				const code = t.toUpperCase();
+				try {
+					localStorage.setItem(TARGET_CACHE_KEY, code);
+				} catch {
+					/* ignore */
+				}
+				return code;
+			}
+			return 'RUB';
+		} catch {
+			await delay(600);
+		}
+	}
+	return null;
+}
+
+async function resolveTargetCurrency(): Promise<string> {
+	// Always ask the backend first (retries past the startup race). Only if it
+	// never answers do we fall back to the last known value, then to RUB.
+	const fresh = await fetchTargetFromBackend();
+	if (fresh) return fresh;
+	const cached = readCachedTarget();
+	if (cached) {
+		log('backend unavailable, using last known target', cached);
+		return cached;
+	}
+	log('settings unavailable, defaulting to RUB');
 	return 'RUB';
 }
 
