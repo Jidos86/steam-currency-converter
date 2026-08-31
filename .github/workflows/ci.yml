@@ -42,7 +42,7 @@ jobs:
           name="steam-currency-converter"
           staging="dist/${name}"
           mkdir -p "$staging"
-          cp -r plugin.json README.md LICENSE backend .millennium "$staging/"
+          cp -r plugin.json README.md LICENSE backend scripts .millennium "$staging/"
           (cd dist && zip -r "../${name}.zip" "${name}")
 
       - name: Upload artifact
