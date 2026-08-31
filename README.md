@@ -4,6 +4,8 @@
 
 > Это приблизительная конвертация по биржевому курсу, а **не** официальная региональная цена Steam.
 
+![Steam Currency Converter в магазине Steam](docs/demo.png)
+
 Форк [KuroKim/steam-currency-to-rub](https://github.com/KuroKim/steam-currency-to-rub).
 
 ---
