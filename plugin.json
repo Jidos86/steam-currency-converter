@@ -3,7 +3,7 @@
   "name": "steam_currency_converter",
   "common_name": "Steam Currency Converter",
   "description": "Shows an approximate price in your chosen currency next to any Steam price (store, cart, checkout, overlay).",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "backendType": "lua",
   "webkitApiVersion": "2.0.0",
   "include": ["README.md", "README.ru.md", "LICENSE"]

@@ -347,8 +347,13 @@ function shouldSkip(element: Element): boolean {
 // Format-agnostic number parse: handles "1,234.56" (US/UK), "1.234,56" (EU)
 // and "1 199" (no decimals). The last separator by position is the decimal
 // one, if it is followed by 1-2 digits.
-function parseNumeric(raw: string): number | null {
-	let s = String(raw).replace(/[^0-9.,]/g, '');
+// No single Steam purchase costs more than this in any wallet currency; a
+// larger value means several prices got concatenated (a discount block).
+const MAX_PRICE = 10_000_000;
+
+/** Turn one number-like token ("1,234.56" / "1.234,56" / "1 199") into a number. */
+function tokenToNumber(token: string): number | null {
+	let s = token.replace(/[^\d.,]/g, '');
 	if (!s) return null;
 
 	const lastComma = s.lastIndexOf(',');
@@ -376,6 +381,21 @@ function parseNumeric(raw: string): number | null {
 	return Number.isFinite(value) && value > 0 ? value : null;
 }
 
+// A discount block reads "-15% ¥98.00 ¥83.30" — several numbers separated by
+// the currency symbol / percent. Take the LAST plausible price token (the
+// final price comes after the struck original), never the concatenation.
+function parseNumeric(raw: string): number | null {
+	const line = String(raw).split(/\r?\n/).find((l) => /\d/.test(l)) ?? String(raw);
+	const tokens = line.match(/\d[\d.,   ]*\d|\d/g);
+	if (!tokens) return null;
+
+	for (let i = tokens.length - 1; i >= 0; i--) {
+		const value = tokenToNumber(tokens[i]);
+		if (value != null && value <= MAX_PRICE) return value;
+	}
+	return null;
+}
+
 function parsePrice(element: HTMLElement): number | null {
 	const priceFinal = element.dataset ? element.dataset.priceFinal : undefined;
 	if (priceFinal) {
@@ -384,10 +404,21 @@ function parsePrice(element: HTMLElement): number | null {
 	}
 
 	const clone = element.cloneNode(true) as HTMLElement;
-	clone.querySelectorAll('strike').forEach((s) => s.remove());
+	// Drop the struck original price and the "-NN%" badge so a discount block
+	// leaves only the final price behind.
+	clone
+		.querySelectorAll(
+			'strike, del, s, .discount_original_price, .discount_pct, ' +
+				'[class*=StrikeThrough], [class*=OriginalPrice], [class*=DiscountPct], [class*=Discount_Percentage]',
+		)
+		.forEach((n) => n.remove());
 
-	const line = (clone.innerText || clone.textContent || '').trim().split(/\r?\n|\r|\n/g)[0];
-	return parseNumeric(line);
+	// Prefer an explicit final-price node when the block exposes one.
+	const finalNode = clone.querySelector<HTMLElement>(
+		'.discount_final_price, [class*=SalePrice], [class*=FinalPrice]',
+	);
+	const target = finalNode ?? clone;
+	return parseNumeric(target.innerText || target.textContent || '');
 }
 
 function injectPrice(element: HTMLElement, forceInline = false): void {
