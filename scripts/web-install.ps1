@@ -2,7 +2,7 @@
 #   irm https://raw.githubusercontent.com/Jidos86/steam-currency-converter/main/scripts/web-install.ps1 | iex
 #
 # Self-contained: no param()/CmdletBinding (breaks under `iex`), no BOM.
-# Override repo/branch via env vars SCC_REPO / SCC_REF.
+# Env vars: SCC_REPO, SCC_REF, SCC_STEAM_PATH, SCC_LANG (en|ru).
 
 & {
     $ErrorActionPreference = 'Stop'
@@ -12,6 +12,13 @@
     $ref    = if ($env:SCC_REF)  { $env:SCC_REF }  else { 'main' }
     $folder = 'steam-currency-converter'
     $name   = 'steam_currency_converter'   # plugin.json "name"
+
+    $ru = if ($env:SCC_LANG) {
+        $env:SCC_LANG -eq 'ru'
+    } else {
+        [System.Globalization.CultureInfo]::CurrentUICulture.TwoLetterISOLanguageName -eq 'ru'
+    }
+    function L($en, $rutext) { if ($ru) { $rutext } else { $en } }
 
     Write-Host "== Steam Currency Converter ==" -ForegroundColor Cyan
 
@@ -26,7 +33,7 @@
         }
         $cands += 'C:\Program Files (x86)\Steam', 'C:\Program Files\Steam'
         foreach ($c in $cands) { if ($c -and (Test-Path (Join-Path $c 'steam.exe'))) { return (Resolve-Path $c).Path } }
-        throw "Steam not found. Set `$env:SCC_STEAM_PATH and retry."
+        throw (L "Steam not found. Set `$env:SCC_STEAM_PATH and retry." "Steam не найден. Задай `$env:SCC_STEAM_PATH и повтори.")
     }
 
     function Resolve-PluginsDir($steam) {
@@ -38,6 +45,17 @@
         $def = Join-Path $steam 'millennium\plugins'
         New-Item -ItemType Directory -Force -Path $def | Out-Null
         return $def
+    }
+
+    function Remove-Target($path) {
+        if (-not (Test-Path $path)) { return }
+        $item = Get-Item $path -Force
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            # junction / symlink — remove only the link, never recurse into its target
+            [IO.Directory]::Delete($path, $false)
+        } else {
+            Remove-Item -Path $path -Recurse -Force
+        }
     }
 
     function Enable-Plugin($steam, $pluginName) {
@@ -57,14 +75,17 @@
                 $list = @($j.plugins.enabledPlugins | Where-Object { $_ -ne $pluginName }) + $pluginName
                 $j.plugins.enabledPlugins = @($list)
                 ($j | ConvertTo-Json -Depth 32) | Set-Content $cfg -Encoding UTF8
-                Write-Host "Enabled in Millennium config." -ForegroundColor Green
+                Write-Host (L "Enabled in the Millennium config." "Плагин включён в конфиге Millennium.") -ForegroundColor Green
                 return
             } catch {
-                Write-Host "Could not edit config.json ($($_.Exception.Message)); enable the plugin manually in Millennium -> Settings -> Plugins." -ForegroundColor Yellow
+                $err = $_.Exception.Message
+                $enMsg = "Could not edit config.json ($err); enable the plugin manually in Millennium -> Settings -> Plugins."
+                $ruMsg = "Не удалось изменить config.json ($err); включи плагин вручную в Millennium -> Settings -> Plugins."
+                Write-Host (L $enMsg $ruMsg) -ForegroundColor Yellow
                 return
             }
         }
-        Write-Host "Millennium config.json not found; enable the plugin manually in Millennium -> Settings -> Plugins." -ForegroundColor Yellow
+        Write-Host (L "Millennium config.json not found; enable the plugin manually in Millennium -> Settings -> Plugins." "config.json Millennium не найден; включи плагин вручную в Millennium -> Settings -> Plugins.") -ForegroundColor Yellow
     }
 
     $steam = if ($env:SCC_STEAM_PATH) { $env:SCC_STEAM_PATH } else { Resolve-SteamPath }
@@ -81,7 +102,8 @@
             $rel = Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest" -Headers @{ 'User-Agent' = 'scc-installer' }
             $asset = $rel.assets | Where-Object { $_.name -like '*.zip' } | Select-Object -First 1
             if ($asset) {
-                Write-Host "Downloading release $($rel.tag_name) ..."
+                $tag = $rel.tag_name
+                Write-Host (L "Downloading release $tag ..." "Скачиваю релиз $tag ...")
                 $zip = Join-Path $tmp 'r.zip'
                 Invoke-WebRequest $asset.browser_download_url -OutFile $zip -UseBasicParsing
                 Expand-Archive $zip -DestinationPath (Join-Path $tmp 'r') -Force
@@ -89,19 +111,19 @@
                     Select-Object -First 1 | ForEach-Object { $_.Directory.FullName }
             }
         } catch {
-            Write-Host "No usable release; building from source." -ForegroundColor DarkYellow
+            Write-Host (L "No usable release; building from source." "Готового релиза нет; собираю из исходников.") -ForegroundColor DarkYellow
         }
 
         # Fall back to source + build (needs Node.js).
         if (-not $pluginSrc) {
             if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-                throw "No release found and Node.js is not installed (needed to build). Install Node 18+ or wait for a release."
+                throw (L "No release found and Node.js is not installed (needed to build). Install Node 18+ or wait for a release." "Нет готового релиза и не найден Node.js для сборки. Поставь Node 18+ или дождись релиза.")
             }
             $zip = Join-Path $tmp 's.zip'
             Invoke-WebRequest "https://codeload.github.com/$repo/zip/refs/heads/$ref" -OutFile $zip -UseBasicParsing
             Expand-Archive $zip -DestinationPath $tmp -Force
             $root = Get-ChildItem -Path $tmp -Directory | Where-Object { Test-Path (Join-Path $_.FullName 'package.json') } | Select-Object -First 1
-            if (-not $root) { throw "package.json not found in the source archive." }
+            if (-not $root) { throw (L "package.json not found in the source archive." "В архиве исходников нет package.json.") }
             Push-Location $root.FullName
             try {
                 Write-Host "npm ci ..." -ForegroundColor DarkGray
@@ -112,16 +134,16 @@
         }
 
         if (-not $pluginSrc -or -not (Test-Path (Join-Path $pluginSrc '.millennium\Dist\webkit.js'))) {
-            throw "Build/download did not produce .millennium\Dist\webkit.js"
+            throw (L "Build/download did not produce .millennium\Dist\webkit.js" "Сборка/загрузка не дала .millennium\Dist\webkit.js")
         }
 
         $pluginsDir = Resolve-PluginsDir $steam
         $target = Join-Path $pluginsDir $folder
-        Write-Host "Install: $target"
+        Write-Host (L "Install: $target" "Ставлю в: $target")
 
-        if (Test-Path $target) { Remove-Item $target -Recurse -Force }
+        Remove-Target $target
         New-Item -ItemType Directory -Force -Path $target | Out-Null
-        foreach ($item in @('plugin.json', 'README.md', 'LICENSE', 'backend', '.millennium')) {
+        foreach ($item in @('plugin.json', 'README.md', 'README.ru.md', 'LICENSE', 'backend', '.millennium')) {
             $s = Join-Path $pluginSrc $item
             if (Test-Path $s) { Copy-Item $s -Destination $target -Recurse -Force }
         }
@@ -129,7 +151,7 @@
         Enable-Plugin $steam $name
 
         Write-Host ""
-        Write-Host "Done. Fully restart Steam (tray -> Exit), then open the store." -ForegroundColor Green
+        Write-Host (L "Done. Fully restart Steam (tray -> Exit), then open the store." "Готово. Полностью перезапусти Steam (трей -> Выход), затем открой магазин.") -ForegroundColor Green
     }
     finally {
         Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
