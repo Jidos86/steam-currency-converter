@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Устанавливает плагин "Steam Currency to RUB" в Millennium (копирование файлов).
+    Устанавливает плагин "Steam Currency Converter" в Millennium (копирование файлов).
 .EXAMPLE
     .\scripts\install.ps1
 .EXAMPLE
@@ -18,8 +18,24 @@ $repoRoot = Split-Path -Path $PSScriptRoot -Parent
 if (-not (Test-Path (Join-Path $repoRoot 'plugin.json'))) {
     throw "plugin.json не найден в $repoRoot — запусти скрипт из папки репозитория."
 }
+
+# Собранного webkit.js нет (свежий клон) — собираем, если есть Node.
 if (-not (Test-Path (Join-Path $repoRoot '.millennium\Dist\webkit.js'))) {
-    throw ".millennium\Dist\webkit.js не найден — репозиторий скачан не полностью."
+    if (-not (Test-Path (Join-Path $repoRoot 'package.json'))) {
+        throw ".millennium\Dist\webkit.js не найден и нет package.json для сборки."
+    }
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        throw "Плагин не собран, и не найден Node.js. Поставь Node 18+ (https://nodejs.org) и запусти снова, либо скачай релизный zip."
+    }
+    Write-Info "Собираю плагин (npm ci && npm run build)..."
+    Push-Location $repoRoot
+    try {
+        & npm ci --silent
+        & npm run build
+    } finally { Pop-Location }
+    if (-not (Test-Path (Join-Path $repoRoot '.millennium\Dist\webkit.js'))) {
+        throw "Сборка не дала .millennium\Dist\webkit.js"
+    }
 }
 
 $steam = Get-SteamPath -Override $SteamPath

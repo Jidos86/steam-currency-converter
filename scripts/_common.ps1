@@ -116,8 +116,8 @@ function Copy-PluginFiles {
     if (Test-Path $Target) { Remove-Item -Path $Target -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $Target | Out-Null
 
-    # Только то, что нужно рантайму — без scripts/.git/.github.
-    foreach ($item in @('plugin.json', 'README.md', 'LICENSE', '.millennium')) {
+    # Только то, что нужно рантайму — без scripts/.git/.github/node_modules.
+    foreach ($item in @('plugin.json', 'README.md', 'LICENSE', 'backend', '.millennium')) {
         $src = Join-Path $RepoRoot $item
         if (Test-Path $src) {
             Copy-Item -Path $src -Destination $Target -Recurse -Force
