@@ -125,6 +125,9 @@ const SELECTORS = [
 	'.market_listing_price_with_fee',
 	'.market_activity_price',
 	'.item_market_actions > div > div:nth-child(2)',
+	// Inventory item panel ("Начальная цена: ¥ …")
+	'[id*=item_market_actions] > div',
+	'.market_commodity_orders_header_promote',
 	// Cart / checkout
 	'.cart_area_summary_final_price',
 	'#cart_estimated_total',
@@ -370,10 +373,19 @@ function shouldSkip(element: Element): boolean {
 	if (classList.includes('market_table_value')) return true;
 
 	const ownText = element.innerText || element.textContent || '';
+
+	// Has a currency sign in its own text — convert it.
+	if (textContainsSupportedCurrency(ownText)) return false;
+
+	// No currency sign of its own: only convert when it's a bare price number
+	// (a discount block puts the final price in its own symbol-less node) and a
+	// parent shows the currency. Labels like "Sold in 24h: 196" are skipped.
+	const bare = ownText.trim();
+	const looksBarePrice = bare.length > 0 && bare.length <= 16 && !/[^\d.,\s  ]/.test(bare);
 	const parentText = element.parentElement
 		? element.parentElement.innerText || element.parentElement.textContent || ''
 		: '';
-	return !textContainsSupportedCurrency(ownText) && !textContainsSupportedCurrency(parentText);
+	return !(looksBarePrice && textContainsSupportedCurrency(parentText));
 }
 
 // Format-agnostic number parse: handles "1,234.56" (US/UK), "1.234,56" (EU)
