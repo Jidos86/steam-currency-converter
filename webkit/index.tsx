@@ -110,7 +110,7 @@ const SELECTORS = [
 	'.discount_final_price > div:not([class])',
 	'.search_price',
 	'.price',
-	'.match_price',
+	'.match_subtitle',
 	'.game_area_dlc_price',
 	'.savings.bundle_savings',
 	'.wallet_column',
@@ -126,7 +126,9 @@ const SELECTORS = [
 	'.market_activity_price',
 	'.item_market_actions > div > div:nth-child(2)',
 	// Inventory item panel ("Начальная цена: ¥ …")
+	'.item_market_actions > div',
 	'[id*=item_market_actions] > div',
+	'[class*=item_market_actions] > div',
 	'.market_commodity_orders_header_promote',
 	// Cart / checkout
 	'.cart_area_summary_final_price',
@@ -452,7 +454,7 @@ function parsePrice(element: HTMLElement): number | null {
 	// leaves only the final price behind.
 	clone
 		.querySelectorAll(
-			'strike, del, s, .discount_original_price, .discount_pct, ' +
+			'strike, del, s, .discount_original_price, .discount_pct, .includes_games, ' +
 				'[class*=StrikeThrough], [class*=OriginalPrice], [class*=DiscountPct], [class*=Discount_Percentage]',
 		)
 		.forEach((n) => n.remove());
