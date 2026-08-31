@@ -173,15 +173,18 @@ function addStyles(): void {
 	const style = document.createElement('style');
 	style.id = 'scc-style';
 	style.textContent = `
-		.scc-original { font-size: 11px; }
-		.scc-block { padding-left: 5px; white-space: nowrap; opacity: 0.92; }
-		.scc-inline { white-space: nowrap; opacity: 0.92; }
-		.tab_item_discount { width: 160px !important; }
-		.tab_item_discount .discount_prices { width: 100% !important; }
-		.tab_item_discount .discount_final_price { padding: 0 !important; }
+		.scc-hint {
+			margin-left: 6px;
+			white-space: nowrap;
+			opacity: 0.85;
+			font-size: 90%;
+			font-weight: normal;
+		}
+		.discount_block .scc-hint,
+		[class*=StoreSalePriceWidgetContainer] .scc-hint { display: inline-block; }
+		.tab_item_discount { width: 190px !important; }
 		.home_marketing_message.small .discount_block { height: auto !important; }
-		.discount_block_inline { white-space: nowrap !important; }
-		.curator #RecommendationsRows .store_capsule.price_inline .discount_block { min-width: 200px !important; }
+		.curator #RecommendationsRows .store_capsule.price_inline .discount_block { min-width: 220px !important; }
 		.market_listing_their_price { min-width: 130px !important; }
 	`;
 	document.head.appendChild(style);
@@ -430,30 +433,17 @@ function injectPrice(element: HTMLElement, forceInline = false): void {
 
 	const convertedText = `≈${formatTarget(price * rate)}`;
 
-	let inline = forceInline;
 	const classList = String(element.className || '');
-	if (
+	const parenthesize =
+		forceInline ||
 		element.id === 'marketWalletBalanceAmount' ||
 		classList.includes('market_listing_price_with_fee') ||
-		classList.includes('market_activity_price')
-	) {
-		inline = true;
-	}
-	if (
-		element.parentElement?.parentElement &&
-		String(element.parentElement.parentElement.className || '').includes('item_market_actions')
-	) {
-		inline = true;
-	}
+		classList.includes('market_activity_price') ||
+		String(element.parentElement?.parentElement?.className || '').includes('item_market_actions');
 
-	if (inline) {
-		element.append(' ', makeSpan('scc-inline', `(${convertedText})`));
-	} else {
-		const originalText = (element.innerText || element.textContent || '').replace('ARS$ ', '$').trim();
-		element.textContent = '';
-		element.append(makeSpan('scc-original', originalText), makeSpan('scc-block', convertedText));
-	}
-
+	// Never rewrite the element's content — just append the hint, so Steam's
+	// own markup (discount badge, strikethrough, layout) stays intact.
+	element.append(' ', makeSpan('scc-hint', parenthesize ? `(${convertedText})` : convertedText));
 	element.setAttribute('data-scc-done', '1');
 }
 
