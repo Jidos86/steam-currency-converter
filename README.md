@@ -31,20 +31,23 @@ A currency change takes effect after Steam is restarted.
 
 ## Install
 
-Requires [Millennium](https://steambrew.app).
-
 ### One line (PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/Jidos86/steam-currency-converter/main/scripts/web-install.ps1 | iex
 ```
 
+Installs [Millennium](https://steambrew.app) first if it's missing (downloads the
+official release, verifies its checksum, extracts into the Steam folder), then
+the plugin — enabled and ready after Steam restarts.
+
 ### Manually
 
-1. Download the prebuilt `steam-currency-converter.zip` from the Releases tab.
-2. Extract into `…\Steam\millennium\plugins\` → `…\plugins\steam-currency-converter\plugin.json`.
-3. Millennium → Settings → Plugins → enable **Steam Currency Converter**.
-4. Fully restart Steam.
+1. Install [Millennium](https://steambrew.app).
+2. Download the prebuilt `steam-currency-converter.zip` from the Releases tab.
+3. Extract into `…\Steam\millennium\plugins\` → `…\plugins\steam-currency-converter\plugin.json`.
+4. Millennium → Settings → Plugins → enable **Steam Currency Converter**.
+5. Fully restart Steam.
 
 ### Uninstall
 

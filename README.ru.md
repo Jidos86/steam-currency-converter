@@ -31,20 +31,23 @@
 
 ## Установка
 
-Нужен установленный [Millennium](https://steambrew.app).
-
 ### Одной командой (PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/Jidos86/steam-currency-converter/main/scripts/web-install.ps1 | iex
 ```
 
+Если [Millennium](https://steambrew.app) не установлен — скрипт сам поставит его
+(качает официальный релиз, проверяет контрольную сумму, распаковывает в папку
+Steam), потом плагин — включённый и готовый после перезапуска Steam.
+
 ### Вручную
 
-1. Скачай собранный `steam-currency-converter.zip` со вкладки Releases.
-2. Распакуй в `…\Steam\millennium\plugins\` → `…\plugins\steam-currency-converter\plugin.json`.
-3. Millennium → Settings → Plugins → включи **Steam Currency Converter**.
-4. Полностью перезапусти Steam.
+1. Поставь [Millennium](https://steambrew.app).
+2. Скачай собранный `steam-currency-converter.zip` со вкладки Releases.
+3. Распакуй в `…\Steam\millennium\plugins\` → `…\plugins\steam-currency-converter\plugin.json`.
+4. Millennium → Settings → Plugins → включи **Steam Currency Converter**.
+5. Полностью перезапусти Steam.
 
 ### Удаление
 
