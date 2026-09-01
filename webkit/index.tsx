@@ -726,42 +726,72 @@ async function resolveTargetCurrency(): Promise<string> {
 	return 'RUB';
 }
 
-async function run(): Promise<void> {
-	const host = String(location.hostname || '').toLowerCase();
-	if (host !== 'store.steampowered.com' && host !== 'steamcommunity.com') return;
+let setupDone = false;
+
+/** Detect the source currency and resolve the rate. Returns false while the
+ *  page hasn't exposed g_rgWalletInfo / the priceCurrency meta yet. */
+async function ensureSetup(): Promise<boolean> {
+	if (setupDone) return true;
+
+	const detected = detectCurrentCurrency();
+	if (!detected) return false;
+
+	sourceCurrency = detected.abbr;
+	sourceCurrencySign = detected.sign;
+
+	if (sourceCurrency === targetCurrency) {
+		log('source == target, nothing to do');
+		setupDone = true;
+		return true;
+	}
 
 	try {
-		addStyles();
-
-		targetCurrency = await resolveTargetCurrency();
-
-		const detected = detectCurrentCurrency();
-		sourceCurrency = detected ? detected.abbr : null;
-		sourceCurrencySign = detected ? detected.sign : null;
-		log('source:', sourceCurrency, 'sign:', sourceCurrencySign, 'target:', targetCurrency);
-
-		if (!sourceCurrency) throw new Error('No source currency detected');
-		if (sourceCurrency === targetCurrency) {
-			log('source == target, nothing to do');
-			return;
-		}
-
 		const rates = await getRates(targetCurrency);
 		const base = rates[targetCurrency.toLowerCase()];
 		const rawRate =
 			base && typeof base === 'object' ? (base as Record<string, number>)[sourceCurrency.toLowerCase()] : null;
 		if (!rawRate || !Number.isFinite(rawRate) || rawRate <= 0) {
-			throw new Error(`Rate not found for ${sourceCurrency} -> ${targetCurrency}`);
+			log('rate not found for', sourceCurrency, '->', targetCurrency);
+			return false;
 		}
-
 		// currency-api gives "1 target = rawRate source"; we need source -> target.
 		rate = 1 / rawRate;
-		log('effective rate (1 ' + sourceCurrency + ' =', rate, targetCurrency + ')');
-
-		runInjection(document);
-		startObserver();
+		setupDone = true;
+		log('source:', sourceCurrency, 'target:', targetCurrency, 'rate 1', sourceCurrency, '=', rate, targetCurrency);
+		return true;
 	} catch (error) {
-		log('fatal error', error);
+		log('rate fetch failed', error);
+		return false;
+	}
+}
+
+async function run(): Promise<void> {
+	const host = String(location.hostname || '').toLowerCase();
+	if (host !== 'store.steampowered.com' && host !== 'steamcommunity.com') return;
+
+	addStyles();
+	targetCurrency = await resolveTargetCurrency();
+
+	// The store home / feeds expose the wallet currency asynchronously — retry
+	// while the page finishes loading rather than giving up after one try.
+	for (let attempt = 0; attempt < 30 && !setupDone; attempt++) {
+		if (await ensureSetup()) break;
+		await delay(500);
+	}
+
+	startObserver(); // harmless before setup — runInjection no-ops until the rate is ready
+
+	if (setupDone) {
+		runInjection(document);
+	} else {
+		log('currency not detected yet, will keep trying');
+		const iv = window.setInterval(async () => {
+			if (await ensureSetup()) {
+				window.clearInterval(iv);
+				runInjection(document);
+			}
+		}, 2000);
+		window.setTimeout(() => window.clearInterval(iv), 120000);
 	}
 }
 
