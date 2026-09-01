@@ -8,6 +8,31 @@ function Write-Info  { param($m) Write-Host $m -ForegroundColor Cyan }
 function Write-Ok    { param($m) Write-Host $m -ForegroundColor Green }
 function Write-Warn2 { param($m) Write-Host $m -ForegroundColor Yellow }
 
+# Delete a plugin install target. If it's a junction / symlink, remove only the
+# link — never recurse into (and wipe) the repo it points at.
+function Remove-Target {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    $item = Get-Item -LiteralPath $Path -Force
+    if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        if ($item.PSIsContainer) { [IO.Directory]::Delete($Path, $false) }
+        else                     { [IO.File]::Delete($Path) }
+    } else {
+        Remove-Item -LiteralPath $Path -Recurse -Force
+    }
+}
+
+# Serialize a Millennium config object back to disk without corrupting it:
+#  - PS 5.1 ConvertTo-Json collapses a 1-element array to a scalar; keep it an array
+#  - PS 5.1 Set-Content -Encoding UTF8 writes a BOM, which the parser rejects
+function Save-MillenniumConfig {
+    param([string]$Path, $Config)
+    $text = $Config | ConvertTo-Json -Depth 32
+    $text = $text -replace '(?m)("enabledPlugins"\s*:\s*)"([^"\r\n]*)"', '$1["$2"]'
+    $text = $text -replace '(?m)("enabledPlugins"\s*:\s*)null', '$1[]'
+    [System.IO.File]::WriteAllText($Path, $text, (New-Object System.Text.UTF8Encoding($false)))
+}
+
 function Get-SteamPath {
     param([string]$Override)
 
@@ -102,7 +127,7 @@ function Set-PluginEnabled {
         if ($Enabled) { $list += $Name }
         $json.plugins.enabledPlugins = @($list)
 
-        ($json | ConvertTo-Json -Depth 32) | Set-Content -Path $cfg -Encoding UTF8
+        Save-MillenniumConfig -Path $cfg -Config $json
         if ($Enabled) { Write-Ok "Плагин включён в config.json Millennium." }
         else          { Write-Warn2 "Плагин выключен в config.json Millennium." }
     } catch {
@@ -113,11 +138,11 @@ function Set-PluginEnabled {
 function Copy-PluginFiles {
     param([string]$RepoRoot, [string]$Target)
 
-    if (Test-Path $Target) { Remove-Item -Path $Target -Recurse -Force }
+    Remove-Target $Target
     New-Item -ItemType Directory -Force -Path $Target | Out-Null
 
     # Только то, что нужно рантайму — без scripts/.git/.github/node_modules.
-    foreach ($item in @('plugin.json', 'README.md', 'LICENSE', 'backend', '.millennium')) {
+    foreach ($item in @('plugin.json', 'README.md', 'README.ru.md', 'LICENSE', 'backend', '.millennium')) {
         $src = Join-Path $RepoRoot $item
         if (Test-Path $src) {
             Copy-Item -Path $src -Destination $Target -Recurse -Force

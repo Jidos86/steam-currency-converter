@@ -15,8 +15,8 @@ Fork of [KuroKim/steam-currency-to-rub](https://github.com/KuroKim/steam-currenc
 ## Features
 
 - **target currency is selectable** in the plugin settings (Millennium → Settings → Plugins → Steam Currency Converter); RUB by default;
-- detects the account's wallet currency automatically (wallet id → schema.org markup → store formatter);
-- supports all 40 Steam wallet currencies as both source and target
+- detects the account's wallet currency automatically (wallet id, or the schema.org `priceCurrency` meta; cached for pages that expose neither);
+- supports all 41 Steam wallet currencies as both source and target
   (USD, EUR, GBP, CHF, PLN, BRL, JPY, NOK, IDR, MYR, PHP, SGD, THB, VND, KRW, TRY,
   UAH, MXN, CAD, AUD, CNY, INR, CLP, PEN, COP, ZAR, HKD, TWD, SAR, AED, SEK, ARS,
   ILS, BYN, KZT, KWD, QAR, CRC, UYU, NZD);
@@ -63,7 +63,7 @@ Three parts, built with `@steambrew/ttc`:
 
 | part | role |
 |---|---|
-| `webkit/` | injected into Steam pages with `Page.setBypassCSP` (so it works even where the store CSP blocks external `<script>`, e.g. the Steam China store); fetches rates from [currency-api](https://github.com/fawazahmed0/exchange-api), detects the wallet currency, scans price nodes (+ a MutationObserver, + an extra pass on `/cart` and `/checkout`) and appends `≈ N <cur>` |
+| `webkit/` | injected into store.steampowered.com / steamcommunity.com with `Page.setBypassCSP` (so it works even under the stricter China-region store CSP that blocks external `<script>`); fetches rates from [currency-api](https://github.com/fawazahmed0/exchange-api), detects the wallet currency, scans price nodes (+ a MutationObserver, + an extra pass on `/cart` and `/checkout`) and appends `≈ N <cur>` |
 | `frontend/` | the settings panel with the currency dropdown |
 | `backend/main.lua` | stores the chosen currency (`millennium.config`) and hands it to the webkit module and the panel via `callable` |
 

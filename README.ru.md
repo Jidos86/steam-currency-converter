@@ -15,8 +15,8 @@
 ## Возможности
 
 - **выбор целевой валюты** в настройках плагина (Millennium → Settings → Plugins → Steam Currency Converter); по умолчанию RUB;
-- определяет валюту аккаунта автоматически (по id кошелька Steam → schema.org → форматтеру магазина);
-- поддерживает все 40 валют кошелька Steam и как исходную, и как целевую
+- определяет валюту аккаунта автоматически (по id кошелька Steam или мете `priceCurrency` schema.org; для страниц без обоих — из кеша);
+- поддерживает все 41 валюту кошелька Steam и как исходную, и как целевую
   (USD, EUR, GBP, CHF, PLN, BRL, JPY, NOK, IDR, MYR, PHP, SGD, THB, VND, KRW, TRY,
   UAH, MXN, CAD, AUD, CNY, INR, CLP, PEN, COP, ZAR, HKD, TWD, SAR, AED, SEK, ARS,
   ILS, BYN, KZT, KWD, QAR, CRC, UYU, NZD);
@@ -63,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 
 | часть | что делает |
 |---|---|
-| `webkit/` | внедряется в страницы Steam с `Page.setBypassCSP` (поэтому работает даже там, где CSP магазина блокирует сторонние `<script>` — например, в китайском регионе); тянет курсы через [currency-api](https://github.com/fawazahmed0/exchange-api), определяет валюту аккаунта, сканирует ценовые блоки (+ MutationObserver, + отдельный проход по `/cart` и `/checkout`) и дописывает `≈ N <валюта>` |
+| `webkit/` | внедряется в store.steampowered.com / steamcommunity.com с `Page.setBypassCSP` (поэтому работает даже под более строгим CSP магазина в китайском регионе, который блокирует сторонние `<script>`); тянет курсы через [currency-api](https://github.com/fawazahmed0/exchange-api), определяет валюту аккаунта, сканирует ценовые блоки (+ MutationObserver, + отдельный проход по `/cart` и `/checkout`) и дописывает `≈ N <валюта>` |
 | `frontend/` | панель настроек с выпадающим списком валют |
 | `backend/main.lua` | хранит выбранную валюту (`millennium.config`) и отдаёт её webkit-модулю и панели через `callable` |
 

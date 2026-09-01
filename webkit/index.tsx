@@ -1,9 +1,10 @@
 /**
  * Steam Currency Converter — webkit module.
  *
- * Injected by Millennium into Steam page contexts (store / community / overlay)
- * with Page.setBypassCSP, so it works even where the store CSP would block an
- * external <script> (e.g. the Steam China store).
+ * Runs on store.steampowered.com and steamcommunity.com (the same pages the
+ * in-game overlay loads). Millennium injects it with Page.setBypassCSP, so it
+ * also works where the store serves a stricter Content-Security-Policy — e.g.
+ * the China-region CSP that blocks external <script> tags.
  *
  * Only DOM APIs + textContent are used to render the hint — no innerHTML,
  * no eval, no remote code. Network access is limited to the public
@@ -306,11 +307,25 @@ function detectCurrencyFromWallet(): { abbr: string; sign: string } | null {
 
 const SOURCE_CACHE_KEY = 'scc_source_currency';
 
+/** Per-account cache key when g_steamID is exposed (it usually is, even where
+ *  g_rgWalletInfo isn't). Falls back to the shared key otherwise — that value
+ *  can be stale for one page load right after an account switch, then heals
+ *  the moment an authoritative source appears. */
+function accountCacheKey(): string | null {
+	try {
+		const id = (window as unknown as { g_steamID?: unknown }).g_steamID;
+		if (typeof id === 'string' && /^\d{5,}$/.test(id)) return `${SOURCE_CACHE_KEY}_${id}`;
+	} catch {
+		/* ignore */
+	}
+	return null;
+}
+
 /** Last currency detected from an authoritative source, reused on pages that
  *  expose neither the wallet id nor the priceCurrency meta (e.g. /search). */
 function detectCurrencyFromCache(): { abbr: string; sign: string | null } | null {
 	try {
-		const abbr = (localStorage.getItem(SOURCE_CACHE_KEY) || '').toUpperCase();
+		const abbr = (localStorage.getItem(accountCacheKey() ?? SOURCE_CACHE_KEY) || localStorage.getItem(SOURCE_CACHE_KEY) || '').toUpperCase();
 		const match = STEAM_CURRENCIES.find((c) => c.abbr === abbr);
 		if (match) return { abbr: match.abbr, sign: match.symbol };
 	} catch {
@@ -327,6 +342,8 @@ function detectCurrentCurrency(): { abbr: string; sign: string | null } | null {
 	const authoritative = detectCurrencyFromWallet() || detectCurrencyFromMeta();
 	if (authoritative) {
 		try {
+			const keyed = accountCacheKey();
+			if (keyed) localStorage.setItem(keyed, authoritative.abbr);
 			localStorage.setItem(SOURCE_CACHE_KEY, authoritative.abbr);
 		} catch {
 			/* ignore */
@@ -405,9 +422,13 @@ function shouldSkip(element: Element): boolean {
 // Format-agnostic number parse: handles "1,234.56" (US/UK), "1.234,56" (EU)
 // and "1 199" (no decimals). The last separator by position is the decimal
 // one, if it is followed by 1-2 digits.
-// No single Steam purchase costs more than this in any wallet currency; a
-// larger value means several prices got concatenated (a discount block).
-const MAX_PRICE = 10_000_000;
+// Sanity cap against concatenated prices (a discount block reads
+// "-15% ¥98.00 ¥83.30"). Zero-decimal / high-denomination currencies reach
+// genuinely large market prices, so the cap is per source currency.
+const HIGH_DENOM_CURRENCIES = new Set(['JPY', 'KRW', 'IDR', 'VND', 'CLP', 'COP', 'CRC']);
+function priceCap(): number {
+	return HIGH_DENOM_CURRENCIES.has(sourceCurrency ?? '') ? 1e11 : 1e8;
+}
 
 /** Turn one number-like token ("1,234.56" / "1.234,56" / "1 199") into a number. */
 function tokenToNumber(token: string): number | null {
@@ -447,9 +468,10 @@ function parseNumeric(raw: string): number | null {
 	const tokens = line.match(/\d[\d.,   ]*\d|\d/g);
 	if (!tokens) return null;
 
+	const cap = priceCap();
 	for (let i = tokens.length - 1; i >= 0; i--) {
 		const value = tokenToNumber(tokens[i]);
-		if (value != null && value <= MAX_PRICE) return value;
+		if (value != null && value <= cap) return value;
 	}
 	return null;
 }
@@ -669,6 +691,21 @@ function startObserver(): void {
 
 	const observer = new MutationObserver(() => scheduleInjection());
 	observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+	// Tear everything down before the context is discarded, so nothing lingers
+	// if the page is a SPA and swaps content without a full reload.
+	window.addEventListener(
+		'pagehide',
+		() => {
+			observer.disconnect();
+			if (followupTimer) {
+				clearTimeout(followupTimer);
+				followupTimer = 0;
+			}
+			observerStarted = false;
+		},
+		{ once: true },
+	);
 
 	setTimeout(scheduleInjection, 1000);
 	setTimeout(scheduleInjection, 2500);

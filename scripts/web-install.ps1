@@ -48,14 +48,23 @@
     }
 
     function Remove-Target($path) {
-        if (-not (Test-Path $path)) { return }
-        $item = Get-Item $path -Force
+        if (-not (Test-Path -LiteralPath $path)) { return }
+        $item = Get-Item -LiteralPath $path -Force
         if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
             # junction / symlink — remove only the link, never recurse into its target
-            [IO.Directory]::Delete($path, $false)
+            if ($item.PSIsContainer) { [IO.Directory]::Delete($path, $false) }
+            else                     { [IO.File]::Delete($path) }
         } else {
-            Remove-Item -Path $path -Recurse -Force
+            Remove-Item -LiteralPath $path -Recurse -Force
         }
+    }
+
+    # Write UTF-8 without a BOM (PS 5.1 Set-Content -Encoding UTF8 adds one, which
+    # Millennium's JSON parser rejects) and keep enabledPlugins a JSON array.
+    function Save-Config($path, $text) {
+        $text = $text -replace '(?m)("enabledPlugins"\s*:\s*)"([^"\r\n]*)"', '$1["$2"]'
+        $text = $text -replace '(?m)("enabledPlugins"\s*:\s*)null', '$1[]'
+        [System.IO.File]::WriteAllText($path, $text, (New-Object System.Text.UTF8Encoding($false)))
     }
 
     function Enable-Plugin($steam, $pluginName) {
@@ -69,7 +78,7 @@
             $seed = $cfgList[0]
             try {
                 New-Item -ItemType Directory -Force -Path (Split-Path $seed) | Out-Null
-                '{ "plugins": { "enabledPlugins": ["' + $pluginName + '"] } }' | Set-Content $seed -Encoding UTF8
+                Save-Config $seed ('{ "plugins": { "enabledPlugins": ["' + $pluginName + '"] } }')
                 Write-Host (L "Seeded Millennium config with the plugin enabled." "Создал конфиг Millennium с включённым плагином.") -ForegroundColor Green
                 return
             } catch { }
@@ -86,7 +95,7 @@
                 }
                 $list = @($j.plugins.enabledPlugins | Where-Object { $_ -ne $pluginName }) + $pluginName
                 $j.plugins.enabledPlugins = @($list)
-                ($j | ConvertTo-Json -Depth 32) | Set-Content $cfg -Encoding UTF8
+                Save-Config $cfg ($j | ConvertTo-Json -Depth 32)
                 Write-Host (L "Enabled in the Millennium config." "Плагин включён в конфиге Millennium.") -ForegroundColor Green
                 return
             } catch {
@@ -128,11 +137,11 @@
             $sha = $rel.assets | Where-Object { $_.name -eq ($asset.name + '.sha256') } | Select-Object -First 1
             if ($sha) { $want = ((Invoke-WebRequest $sha.browser_download_url -UseBasicParsing).Content -split '\s+')[0] }
         }
-        if ($want) {
-            $got = (Get-FileHash $zip -Algorithm SHA256).Hash
-            if ($got -ne $want.Trim().ToUpper() -and $got -ne $want.Trim().ToLower() -and $got.ToLower() -ne $want.Trim().ToLower()) {
-                throw 'Millennium download failed sha256 verification.'
-            }
+        if (-not $want) {
+            throw (L "No checksum available for the Millennium download; refusing to install an unverified archive." "Нет контрольной суммы для скачанного Millennium — не ставлю непроверенный архив.")
+        }
+        if ((Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() -ne $want.Trim().ToLower()) {
+            throw (L "Millennium download failed sha256 verification." "Millennium: контрольная сумма не совпала.")
         }
 
         $running = Get-Process steam -ErrorAction SilentlyContinue

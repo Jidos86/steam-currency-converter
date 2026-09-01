@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-    Удаляет плагин "Steam Currency to RUB" из Millennium.
+    Удаляет плагин "Steam Currency Converter" из Millennium.
 .EXAMPLE
     .\scripts\uninstall.ps1
 #>
@@ -25,7 +25,7 @@ foreach ($base in @(
     foreach ($name in @($script:PluginFolder, 'steam-currency-to-rub', 'steam-currency-to-rub-main', 'steam_currency_to_rub.js')) {
         $p = Join-Path $base $name
         if (Test-Path $p) {
-            Remove-Item -Path $p -Recurse -Force
+            Remove-Target $p
             Write-Warn2 "Удалено: $p"
             $removedAny = $true
         }

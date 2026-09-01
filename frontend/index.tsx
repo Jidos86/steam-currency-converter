@@ -97,9 +97,11 @@ const SettingsContent = () => {
 
 	const handleChange = (code: string) => {
 		if (!KNOWN_CODES.has(code)) return;
+		const previous = selected;
 		setSelected(code); // optimistic — local state drives the UI
 		void setTargetCurrency({ currency: code }).catch((e: unknown) => {
 			console.error('[Steam Currency Converter] failed to save target currency', e);
+			setSelected(previous); // roll back on failure
 		});
 	};
 

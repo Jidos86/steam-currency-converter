@@ -27,7 +27,7 @@ $target     = Join-Path $pluginsDir $script:PluginFolder
 Write-Info "Steam:   $steam"
 Write-Info "Симлинк: $target  ->  $repoRoot"
 
-if (Test-Path $target) { Remove-Item -Path $target -Recurse -Force }
+Remove-Target $target
 
 try {
     New-Item -ItemType SymbolicLink -Path $target -Target $repoRoot | Out-Null

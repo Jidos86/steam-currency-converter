@@ -17,8 +17,12 @@ function get_settings()
     return json.encode({ target_currency = current_target() })
 end
 
---- Written by the settings panel. `currency` is an ISO 4217 code.
+--- Written by the settings panel. Accepts a 3-letter ISO 4217 code as a bare
+--- string or as a table `{ currency = "USD" }`.
 function set_target_currency(currency)
+    if type(currency) == "table" then
+        currency = currency.currency
+    end
     if type(currency) == "string" and currency:match("^%a%a%a$") then
         millennium.config.set("target_currency", string.upper(currency))
         logger:info("Steam Currency Converter: target currency set to " .. string.upper(currency))
