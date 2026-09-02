@@ -21,7 +21,7 @@
   UAH, MXN, CAD, AUD, CNY, INR, CLP, PEN, COP, ZAR, HKD, TWD, SAR, AED, SEK, ARS,
   ILS, BYN, KZT, KWD, QAR, CRC, UYU, NZD);
 - универсальный разбор цен: `1,234.56`, `1.234,56`, `1 199`, валюты без копеек;
-- работает в корзине и оформлении заказа (в т.ч. новый React-интерфейс) и в оверлее;
+- покрывает магазин, поиск (результаты и выпадающие подсказки), ленты рекомендаций, корзину / оформление (в т.ч. новый React-интерфейс), торговую площадку, инвентарь и игровой оверлей;
 - курс кешируется на 6 часов, при недоступности сети — прошлый кеш; три источника с автопереключением;
 - рендер только через DOM API (`createElement` / `textContent`) — без `innerHTML`, `eval` и удалённого кода.
 
@@ -63,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\uninstall.ps1
 
 | часть | что делает |
 |---|---|
-| `webkit/` | внедряется в store.steampowered.com / steamcommunity.com с `Page.setBypassCSP` (поэтому работает даже под более строгим CSP магазина в китайском регионе, который блокирует сторонние `<script>`); тянет курсы через [currency-api](https://github.com/fawazahmed0/exchange-api), определяет валюту аккаунта, сканирует ценовые блоки (+ MutationObserver, + отдельный проход по `/cart` и `/checkout`) и дописывает `≈ N <валюта>` |
+| `webkit/` | внедряется в store.steampowered.com / steamcommunity.com с `Page.setBypassCSP` (поэтому работает даже под более строгим CSP магазина в китайском регионе, который блокирует сторонние `<script>`); тянет курсы через [currency-api](https://github.com/fawazahmed0/exchange-api), определяет валюту аккаунта, конвертит цены (фиксированные селекторы + точечные сканы под React-выпадашку поиска, ленты и инвентарь), пересчитывает по `MutationObserver` и дописывает `≈ N <валюта>` |
 | `frontend/` | панель настроек с выпадающим списком валют |
 | `backend/main.lua` | хранит выбранную валюту (`millennium.config`) и отдаёт её webkit-модулю и панели через `callable` |
 

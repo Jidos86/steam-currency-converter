@@ -21,7 +21,7 @@ Fork of [KuroKim/steam-currency-to-rub](https://github.com/KuroKim/steam-currenc
   UAH, MXN, CAD, AUD, CNY, INR, CLP, PEN, COP, ZAR, HKD, TWD, SAR, AED, SEK, ARS,
   ILS, BYN, KZT, KWD, QAR, CRC, UYU, NZD);
 - format-agnostic price parsing: `1,234.56`, `1.234,56`, `1 199`, zero-decimal currencies;
-- works in the cart and checkout (including the new React UI) and the overlay;
+- covers the store, search (results and the instant-search dropdown), recommendation feeds, cart / checkout (including the new React UI), the community market, the inventory, and the in-game overlay;
 - exchange rates cached for 6 hours, falls back to the last cache when offline; three sources with automatic failover;
 - DOM-only rendering (`createElement` / `textContent`) — no `innerHTML`, no `eval`, no remote code.
 
@@ -63,7 +63,7 @@ Three parts, built with `@steambrew/ttc`:
 
 | part | role |
 |---|---|
-| `webkit/` | injected into store.steampowered.com / steamcommunity.com with `Page.setBypassCSP` (so it works even under the stricter China-region store CSP that blocks external `<script>`); fetches rates from [currency-api](https://github.com/fawazahmed0/exchange-api), detects the wallet currency, scans price nodes (+ a MutationObserver, + an extra pass on `/cart` and `/checkout`) and appends `≈ N <cur>` |
+| `webkit/` | injected into store.steampowered.com / steamcommunity.com with `Page.setBypassCSP` (so it works even under the stricter China-region store CSP that blocks external `<script>`); fetches rates from [currency-api](https://github.com/fawazahmed0/exchange-api), detects the wallet currency, then converts prices — fixed selectors plus targeted scans for the React search dropdown, feeds and inventory — re-running on a `MutationObserver`, and appends `≈ N <cur>` |
 | `frontend/` | the settings panel with the currency dropdown |
 | `backend/main.lua` | stores the chosen currency (`millennium.config`) and hands it to the webkit module and the panel via `callable` |
 
