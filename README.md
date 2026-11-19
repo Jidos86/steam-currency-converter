@@ -22,7 +22,7 @@ Fork of [KuroKim/steam-currency-to-rub](https://github.com/KuroKim/steam-currenc
   ILS, BYN, KZT, KWD, QAR, CRC, UYU, NZD);
 - format-agnostic price parsing: `1,234.56`, `1.234,56`, `1 199`, zero-decimal currencies;
 - covers the store, search (results and the instant-search dropdown), recommendation feeds, cart / checkout (including the new React UI), the community market, the inventory, and the in-game overlay;
-- exchange rates cached for 6 hours, falls back to the last cache when offline; three sources with automatic failover;
+- currency-api rates from three mirrors, with [Freedom Bank](https://bankffin.kz/api/exchange-rates/getRates) as a fallback for pairs it quotes; rates are cached for 6 hours, with the last cached rate available offline;
 - DOM-only rendering (`createElement` / `textContent`) — no `innerHTML`, no `eval`, no remote code.
 
 A currency change takes effect after Steam is restarted.
@@ -98,6 +98,6 @@ scripts/                     install / uninstall / dev-link / web-install
 
 - Original plugin — [KuroKim](https://github.com/KuroKim/steam-currency-to-rub).
 - Original userscript — [CJMAXiK](https://gist.github.com/cjmaxik/7ce493d08958eecd56a78c01482e49fa) (MIT).
-- Exchange rates — [@fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api).
+- Exchange rates — [@fawazahmed0/exchange-api](https://github.com/fawazahmed0/exchange-api); the [Freedom Bank API](https://bankffin.kz/api/exchange-rates/getRates) fallback uses the midpoint of its non-cash buy and sell rates.
 
 Not affiliated with Valve or Millennium / Steambrew. Unofficial plugin. MIT licensed.
