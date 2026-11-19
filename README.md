@@ -22,10 +22,10 @@ Fork of [KuroKim/steam-currency-to-rub](https://github.com/KuroKim/steam-currenc
   ILS, BYN, KZT, KWD, QAR, CRC, UYU, NZD);
 - format-agnostic price parsing: `1,234.56`, `1.234,56`, `1 199`, zero-decimal currencies;
 - covers the store, search (results and the instant-search dropdown), recommendation feeds, cart / checkout (including the new React UI), the community market, the inventory, and the in-game overlay;
-- currency-api rates from three mirrors, with [Freedom Bank](https://bankffin.kz/api/exchange-rates/getRates) as a fallback for pairs it quotes; rates are cached for 6 hours, with the last cached rate available offline;
+- choose a preferred exchange rate source in the plugin settings: currency-api (three mirrors, default) or [Freedom Bank](https://bankffin.kz/api/exchange-rates/getRates). If the preferred source has no rate for the currency pair or is unavailable, the plugin tries the other source. Rates are cached for 6 hours, with the last cached rate available offline;
 - DOM-only rendering (`createElement` / `textContent`) — no `innerHTML`, no `eval`, no remote code.
 
-A currency change takes effect after Steam is restarted.
+Currency and rate source changes take effect after Steam is restarted.
 
 ---
 
@@ -64,8 +64,8 @@ Three parts, built with `@steambrew/ttc`:
 | part | role |
 |---|---|
 | `webkit/` | injected into store.steampowered.com / steamcommunity.com with `Page.setBypassCSP` (so it works even under the stricter China-region store CSP that blocks external `<script>`); fetches rates from [currency-api](https://github.com/fawazahmed0/exchange-api), detects the wallet currency, then converts prices — fixed selectors plus targeted scans for the React search dropdown, feeds and inventory — re-running on a `MutationObserver`, and appends `≈ N <cur>` |
-| `frontend/` | the settings panel with the currency dropdown |
-| `backend/main.lua` | stores the chosen currency (`millennium.config`) and hands it to the webkit module and the panel via `callable` |
+| `frontend/` | the settings panel with dropdowns for currency and rate source |
+| `backend/main.lua` | stores the settings (`millennium.config`) and exposes them to the webkit module and the panel via `callable` |
 
 ---
 

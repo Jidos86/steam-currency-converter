@@ -14,7 +14,21 @@ end
 
 --- Read by the webkit module and the settings panel.
 function get_settings()
-    return json.encode({ target_currency = current_target() })
+    local source = millennium.config.get("rate_source")
+    return json.encode({
+        target_currency = current_target(),
+        rate_source = source == "freedom_bank" and "freedom_bank" or "currency_api",
+    })
+end
+
+function set_rate_source(source)
+    if type(source) == "table" then
+        source = source.source
+    end
+    if source == "currency_api" or source == "freedom_bank" then
+        millennium.config.set("rate_source", source)
+    end
+    return get_settings()
 end
 
 --- Written by the settings panel. Accepts a 3-letter ISO 4217 code as a bare

@@ -1,10 +1,8 @@
 /**
  * Steam Currency Converter — settings panel.
  *
- * The chosen currency lives in the lua backend (millennium.config). This
- * panel reads it via the `get_settings` callable and writes it via
- * `set_target_currency` — the same IPC path the webkit module uses, since
- * usePluginConfig / pluginConfig were unreliable in this Millennium build.
+ * Settings live in the Lua backend (millennium.config). The panel and webkit
+ * module both read them via the `get_settings` callable.
  */
 import { Dropdown, Field, IconsModule, callable, definePlugin } from '@steambrew/client';
 import { useEffect, useState } from 'react';
@@ -61,34 +59,40 @@ const KNOWN_CODES = new Set(TARGET_CURRENCIES.map((c) => c.code));
 
 const getSettings = callable<[], string>('get_settings');
 const setTargetCurrency = callable<[{ currency: string }], string>('set_target_currency');
-
-function parseTarget(raw: string): string | null {
-	try {
-		const value = (JSON.parse(raw) as { target_currency?: unknown }).target_currency;
-		const code = typeof value === 'string' ? value.toUpperCase() : '';
-		return KNOWN_CODES.has(code) ? code : null;
-	} catch {
-		return null;
-	}
-}
+const setRateSource = callable<[{ source: string }], string>('set_rate_source');
+const SOURCE_OPTIONS = [
+	{ data: 'currency_api', label: 'Currency API' },
+	{ data: 'freedom_bank', label: 'Freedom Bank' },
+];
 
 const SettingsContent = () => {
 	// null = still loading the saved value from the backend.
 	const [selected, setSelected] = useState<string | null>(null);
+	const [source, setSource] = useState<string | null>(null);
+	const [savingSource, setSavingSource] = useState(false);
+	const [sourceSaveFailed, setSourceSaveFailed] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
 			for (let attempt = 0; attempt < 6 && !cancelled; attempt++) {
 				try {
-					const code = parseTarget(await getSettings());
-					if (!cancelled) setSelected(code ?? DEFAULT_TARGET);
+					const settings = JSON.parse(await getSettings());
+					const target = settings?.target_currency;
+					const code = typeof target === 'string' ? target.toUpperCase() : '';
+					if (!cancelled) {
+						setSelected(KNOWN_CODES.has(code) ? code : DEFAULT_TARGET);
+						setSource(settings?.rate_source === 'freedom_bank' ? 'freedom_bank' : 'currency_api');
+					}
 					return;
 				} catch {
 					await new Promise((r) => setTimeout(r, 500));
 				}
 			}
-			if (!cancelled) setSelected(DEFAULT_TARGET);
+			if (!cancelled) {
+				setSelected(DEFAULT_TARGET);
+				setSource('currency_api');
+			}
 		})();
 		return () => {
 			cancelled = true;
@@ -105,6 +109,24 @@ const SettingsContent = () => {
 		});
 	};
 
+	const handleSourceChange = async (value: string) => {
+		if (savingSource || value === source || !SOURCE_OPTIONS.some((option) => option.data === value)) return;
+		const previous = source;
+		setSource(value);
+		setSavingSource(true);
+		setSourceSaveFailed(false);
+		try {
+			const saved = JSON.parse(await setRateSource({ source: value }));
+			if (saved?.rate_source !== value) throw new Error('Rate source was not saved');
+		} catch (error) {
+			console.error('[Steam Currency Converter] failed to save rate source', error);
+			setSource(previous);
+			setSourceSaveFailed(true);
+		} finally {
+			setSavingSource(false);
+		}
+	};
+
 	return (
 		<div style={{ padding: '16px' }}>
 			<Field
@@ -112,7 +134,6 @@ const SettingsContent = () => {
 				description="Currency to show an approximate price in, next to the original Steam price. Takes effect after Steam is restarted."
 				icon={<IconsModule.Settings />}
 				childrenLayout="below"
-				bottomSeparator="none"
 			>
 				{selected !== null && (
 					// Steam's Dropdown keeps its own selection state and ignores
@@ -124,6 +145,23 @@ const SettingsContent = () => {
 						onChange={(option) => handleChange(String(option.data))}
 					/>
 				)}
+			</Field>
+			<Field
+				label="Preferred exchange rate source"
+				description="Uses the other source when the preferred source is unavailable or has no rate for the currency pair. Takes effect after Steam is restarted."
+				childrenLayout="below"
+				bottomSeparator="none"
+			>
+				{source !== null && (
+					<Dropdown
+						key={source}
+						rgOptions={SOURCE_OPTIONS}
+						selectedOption={source}
+						disabled={savingSource}
+						onChange={(option) => void handleSourceChange(String(option.data))}
+					/>
+				)}
+				{sourceSaveFailed && <div role="alert">Could not save the exchange rate source.</div>}
 			</Field>
 		</div>
 	);

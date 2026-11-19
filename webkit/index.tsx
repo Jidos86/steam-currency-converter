@@ -154,6 +154,7 @@ const CACHE_MS = 6 * 60 * 60 * 1000; // 6 hours
 let sourceCurrency: string | null = null;
 let sourceCurrencySign: string | null = null;
 let targetCurrency = 'RUB';
+let preferFreedomBank = false;
 let rate: number | null = null; // 1 source unit = `rate` target units
 let observerStarted = false;
 let injectScheduled = false;
@@ -306,28 +307,38 @@ async function getRate(base: string, source: string): Promise<number> {
 	const now = Date.now();
 	const cachedRate = readRate(cache, b, quote);
 	const cachedBankRate = readRate(bankCache, b, quote);
-	if (cachedRate !== undefined && timeout > now && rateDate && rateDate + 24 * 60 * 60 * 1000 > now) {
-		return cachedRate;
-	}
-	if (cachedBankRate !== undefined && bankTimeout > now) return cachedBankRate;
+	const currencyApi = {
+		cached: cachedRate,
+		fresh: timeout > now && rateDate + 24 * 60 * 60 * 1000 > now,
+		fetch: () => fetchRates(b, quote),
+	};
+	const freedomBank = {
+		cached: cachedBankRate,
+		fresh: bankTimeout > now,
+		fetch: async () => {
+			const value = await fetchFreedomBankRate(b, quote);
+			cacheRates(bankKey, { [b]: { [quote]: value } });
+			return value;
+		},
+	};
+	const providers = preferFreedomBank ? [freedomBank, currencyApi] : [currencyApi, freedomBank];
 
-	try {
-		return await fetchRates(b, quote);
-	} catch (error) {
-		log('currency-api unavailable for pair:', error);
-	}
-	try {
-		const value = await fetchFreedomBankRate(b, quote);
-		cacheRates(bankKey, { [b]: { [quote]: value } });
-		return value;
-	} catch (error) {
-		const staleRate = cachedRate ?? cachedBankRate;
-		if (staleRate !== undefined) {
-			log('using stale cached rate:', error);
-			return staleRate;
+	let lastError: unknown;
+	for (const provider of providers) {
+		if (provider.fresh && provider.cached !== undefined) return provider.cached;
+		try {
+			return await provider.fetch();
+		} catch (error) {
+			lastError = error;
+			log('rate provider unavailable for pair:', error);
 		}
-		throw error;
 	}
+	const staleRate = providers[0].cached ?? providers[1].cached;
+	if (staleRate !== undefined) {
+		log('using stale cached rate');
+		return staleRate;
+	}
+	throw lastError;
 }
 
 function detectCurrencyFromMeta(): { abbr: string; sign: string | null } | null {
@@ -767,9 +778,11 @@ function delay(ms: number): Promise<void> {
 }
 
 const TARGET_CACHE_KEY = 'scc_target_currency';
+const RATE_SOURCE_CACHE_KEY = 'scc_rate_source';
 
 function readCachedTarget(): string | null {
 	try {
+		preferFreedomBank = localStorage.getItem(RATE_SOURCE_CACHE_KEY) === 'freedom_bank';
 		const v = localStorage.getItem(TARGET_CACHE_KEY);
 		return v && /^[A-Z]{3}$/.test(v) ? v : null;
 	} catch {
@@ -777,22 +790,21 @@ function readCachedTarget(): string | null {
 	}
 }
 
-/** Ask the backend for the chosen currency, retrying past the startup race. */
+/** Ask the backend for settings, retrying past the startup race. */
 async function fetchTargetFromBackend(): Promise<string | null> {
 	for (let attempt = 0; attempt < 8; attempt++) {
 		try {
-			const parsed = safeParseJSON<{ target_currency?: string }>(await getSettings());
+			const parsed = safeParseJSON<{ target_currency?: string; rate_source?: string }>(await getSettings());
 			const t = parsed?.target_currency;
-			if (typeof t === 'string' && /^[A-Za-z]{3}$/.test(t)) {
-				const code = t.toUpperCase();
-				try {
-					localStorage.setItem(TARGET_CACHE_KEY, code);
-				} catch {
-					/* ignore */
-				}
-				return code;
+			const code = typeof t === 'string' && /^[A-Za-z]{3}$/.test(t) ? t.toUpperCase() : 'RUB';
+			preferFreedomBank = parsed?.rate_source === 'freedom_bank';
+			try {
+				localStorage.setItem(TARGET_CACHE_KEY, code);
+				localStorage.setItem(RATE_SOURCE_CACHE_KEY, preferFreedomBank ? 'freedom_bank' : 'currency_api');
+			} catch {
+				/* ignore */
 			}
-			return 'RUB';
+			return code;
 		} catch {
 			await delay(600);
 		}
