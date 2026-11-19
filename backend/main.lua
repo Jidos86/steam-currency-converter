@@ -68,7 +68,7 @@ return {
             transforms = {
                 {
                     match = wallet_balance,
-                    replace = [[\1=\2.GetCurrentUser().strAccountBalance,\3;const sccRenderWallet=original=>(0,\5)(#{{self}}?.walletHooks?.WalletBalance||(({original})=>original),{original,balance:\1,steamId:\2.GetCurrentUser().strSteamID,client:\2});return \4\5\6sccRenderWallet(\7)\8sccRenderWallet(\1)]],
+                    replace = [[\1=\2.GetCurrentUser().strAccountBalance,\3;const sccRenderWallet=original=>(0,\5)((window.PLUGIN_LIST&&#{{self}}?.walletHooks?.WalletBalance)||(({original})=>original),{original,balance:\1,steamId:\2.GetCurrentUser().strSteamID,client:\2});return \4\5\6(sccRenderWallet(\7))\8(sccRenderWallet(\1))]],
                 },
             },
         },

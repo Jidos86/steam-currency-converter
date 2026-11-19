@@ -63,7 +63,10 @@ export function WalletBalance({ original, balance, steamId, client }: WalletProp
 		let conversion = pendingConversions.get(key);
 		if (!conversion) {
 			conversion = convertBalance(client, balance)
-				.catch(() => null)
+				.catch((error: unknown) => {
+					console.debug('[Steam Currency Converter] wallet conversion failed', error);
+					return null;
+				})
 				.finally(() => pendingConversions.delete(key));
 			pendingConversions.set(key, conversion);
 		}
