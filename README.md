@@ -4,6 +4,8 @@
 
 A [Millennium](https://steambrew.app) plugin: shows an **approximate price in the currency you pick** next to any Steam price — store, cart, checkout, community market, and the in-game overlay.
 
+The desktop Steam client also shows the converted wallet balance in parentheses in the top bar and in the account menu.
+
 > This is an approximate exchange-rate conversion, **not** an official Steam regional price.
 
 ![Steam Currency Converter on the Steam store](docs/demo.png)
@@ -64,7 +66,7 @@ Three parts, built with `@steambrew/ttc`:
 | part | role |
 |---|---|
 | `webkit/` | injected into store.steampowered.com / steamcommunity.com with `Page.setBypassCSP` (so it works even under the stricter China-region store CSP that blocks external `<script>`); fetches rates from [currency-api](https://github.com/fawazahmed0/exchange-api), detects the wallet currency, then converts prices — fixed selectors plus targeted scans for the React search dropdown, feeds and inventory — re-running on a `MutationObserver`, and appends `≈ N <cur>` |
-| `frontend/` | the settings panel with dropdowns for currency and rate source |
+| `frontend/` | the settings panel and the desktop wallet balance conversion |
 | `backend/main.lua` | stores the settings (`millennium.config`) and exposes them to the webkit module and the panel via `callable` |
 
 ---

@@ -55,7 +55,22 @@ local function on_unload()
     logger:info("Steam Currency Converter: backend unloaded")
 end
 
+local wallet_balance = [[(\w+)=(\(0,\w+\.\w+\)\(\))\.GetCurrentUser\(\)\.strAccountBalance,(\w+=\(0,\w+\.\w+\)\(\)\.GetCurrentUser\(\)\.strAccountBalancePending);return (\w+\?\.length>0\?\(0,)(\w+\.jsx)(\)\("div",\{className:\w+\(\)\.WalletBalance,children:)(\(0,\w+\.\w+\)\("#WalletPendingBalance",\w+,\w+\))(\}\):\w+\?\.length>0\?\(0,\w+\.jsx\)\("div",\{className:\w+\(\)\.WalletBalance,children:)\w+]]
+
 return {
     on_load = on_load,
     on_unload = on_unload,
+    patches = {
+        {
+            -- Steam renders this component in both the title bar and the account menu.
+            file = [[(?:sp|chunk~[0-9a-f]+)\.js]],
+            find = wallet_balance,
+            transforms = {
+                {
+                    match = wallet_balance,
+                    replace = [[\1=\2.GetCurrentUser().strAccountBalance,\3;const sccRenderWallet=original=>(0,\5)(#{{self}}?.walletHooks?.WalletBalance||(({original})=>original),{original,balance:\1,steamId:\2.GetCurrentUser().strSteamID,client:\2});return \4\5\6sccRenderWallet(\7)\8sccRenderWallet(\1)]],
+                },
+            },
+        },
+    },
 }

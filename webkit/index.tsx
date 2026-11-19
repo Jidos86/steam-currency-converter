@@ -12,60 +12,11 @@
  * from the plugin settings via the lua backend.
  */
 import { callable } from '@steambrew/webkit';
+import { getRate, safeParseJSON } from '../shared/exchange-rates';
+import { tokenToNumber } from '../shared/price-number';
+import { STEAM_CURRENCIES, findCurrencyById } from '../shared/steam-currencies';
 
 const getSettings = callable<[], string>('get_settings');
-
-interface SteamCurrency {
-	id: number;
-	abbr: string;
-	symbol: string;
-}
-
-// Full Steam wallet currency table: id -> { abbr, symbol }.
-// symbol is only a detection fallback (primary detection is by wallet id).
-const STEAM_CURRENCIES: SteamCurrency[] = [
-	{ id: 1, abbr: 'USD', symbol: '$' },
-	{ id: 2, abbr: 'GBP', symbol: '£' },
-	{ id: 3, abbr: 'EUR', symbol: '€' },
-	{ id: 4, abbr: 'CHF', symbol: 'CHF' },
-	{ id: 5, abbr: 'RUB', symbol: '₽' },
-	{ id: 6, abbr: 'PLN', symbol: 'zł' },
-	{ id: 7, abbr: 'BRL', symbol: 'R$' },
-	{ id: 8, abbr: 'JPY', symbol: '¥' },
-	{ id: 9, abbr: 'NOK', symbol: 'kr' },
-	{ id: 10, abbr: 'IDR', symbol: 'Rp' },
-	{ id: 11, abbr: 'MYR', symbol: 'RM' },
-	{ id: 12, abbr: 'PHP', symbol: '₱' },
-	{ id: 13, abbr: 'SGD', symbol: 'S$' },
-	{ id: 14, abbr: 'THB', symbol: '฿' },
-	{ id: 15, abbr: 'VND', symbol: '₫' },
-	{ id: 16, abbr: 'KRW', symbol: '₩' },
-	{ id: 17, abbr: 'TRY', symbol: 'TL' },
-	{ id: 18, abbr: 'UAH', symbol: '₴' },
-	{ id: 19, abbr: 'MXN', symbol: 'Mex$' },
-	{ id: 20, abbr: 'CAD', symbol: 'CDN$' },
-	{ id: 21, abbr: 'AUD', symbol: 'A$' },
-	{ id: 22, abbr: 'NZD', symbol: 'NZ$' },
-	{ id: 23, abbr: 'CNY', symbol: '¥' },
-	{ id: 24, abbr: 'INR', symbol: '₹' },
-	{ id: 25, abbr: 'CLP', symbol: 'CLP$' },
-	{ id: 26, abbr: 'PEN', symbol: 'S/.' },
-	{ id: 27, abbr: 'COP', symbol: 'COL$' },
-	{ id: 28, abbr: 'ZAR', symbol: 'R' },
-	{ id: 29, abbr: 'HKD', symbol: 'HK$' },
-	{ id: 30, abbr: 'TWD', symbol: 'NT$' },
-	{ id: 31, abbr: 'SAR', symbol: 'SR' },
-	{ id: 32, abbr: 'AED', symbol: 'AED' },
-	{ id: 33, abbr: 'SEK', symbol: 'kr' },
-	{ id: 34, abbr: 'ARS', symbol: 'ARS$' },
-	{ id: 35, abbr: 'ILS', symbol: '₪' },
-	{ id: 36, abbr: 'BYN', symbol: 'Br' },
-	{ id: 37, abbr: 'KZT', symbol: '₸' },
-	{ id: 38, abbr: 'KWD', symbol: 'KD' },
-	{ id: 39, abbr: 'QAR', symbol: 'QR' },
-	{ id: 40, abbr: 'CRC', symbol: '₡' },
-	{ id: 41, abbr: 'UYU', symbol: '$U' },
-];
 
 // Distinctive currency signs for the "this text is a price" heuristic.
 // Only multi-char / unique signs, to avoid matching ordinary text.
@@ -149,8 +100,6 @@ const SELECTORS = [
 
 const EXTRA_SCAN_PATHS = ['/cart', '/checkout'];
 
-const CACHE_MS = 6 * 60 * 60 * 1000; // 6 hours
-
 let sourceCurrency: string | null = null;
 let sourceCurrencySign: string | null = null;
 let targetCurrency = 'RUB';
@@ -161,10 +110,6 @@ let injectScheduled = false;
 
 function log(...args: unknown[]): void {
 	console.log('[Steam Currency Converter]', ...args);
-}
-
-function findCurrencyById(id: number): SteamCurrency | null {
-	return STEAM_CURRENCIES.find((c) => c.id === id) ?? null;
 }
 
 function makeSpan(className: string, text: string): HTMLSpanElement {
@@ -197,148 +142,6 @@ function addStyles(): void {
 		.market_listing_their_price { min-width: 130px !important; }
 	`;
 	document.head.appendChild(style);
-}
-
-function safeParseJSON<T = unknown>(value: string | null): T | null {
-	if (!value) return null;
-	try {
-		return JSON.parse(value) as T;
-	} catch {
-		return null;
-	}
-}
-
-interface RatesDoc {
-	date?: string;
-	[base: string]: Record<string, number> | string | undefined;
-}
-
-function cacheKey(base: string): string {
-	return `scc_rates_${base}`;
-}
-function cacheTimeoutKey(base: string): string {
-	return `scc_rates_timeout_${base}`;
-}
-
-function readRate(doc: RatesDoc | null, base: string, quote: string): number | undefined {
-	const rates = doc?.[base];
-	const value = typeof rates === 'object' ? rates?.[quote] : undefined;
-	return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
-}
-
-function cacheRates(key: string, data: RatesDoc): void {
-	try {
-		localStorage.setItem(cacheKey(key), JSON.stringify(data));
-		localStorage.setItem(cacheTimeoutKey(key), String(Date.now() + CACHE_MS));
-	} catch {
-		/* localStorage may be unavailable */
-	}
-}
-
-async function fetchFreedomBankRate(base: string, quote: string): Promise<number> {
-	const response = await fetch('https://bankffin.kz/api/exchange-rates/getRates', {
-		cache: 'no-store',
-		credentials: 'omit',
-	});
-	if (!response.ok) throw new Error(`Freedom Bank HTTP ${response.status}`);
-
-	const payload = await response.json();
-	if (payload?.success !== true || !Array.isArray(payload.data?.non_cash)) {
-		throw new Error('Invalid Freedom Bank rates response');
-	}
-
-	const baseCode = base.toUpperCase();
-	const quoteCode = quote.toUpperCase();
-	const pair = payload.data.non_cash.find((entry: Record<string, unknown> | null) => (
-		(entry?.buyCode === baseCode && entry.sellCode === quoteCode) ||
-		(entry?.buyCode === quoteCode && entry.sellCode === baseCode)
-	));
-	const buy = typeof pair?.buyRate === 'string' ? Number(pair.buyRate.replace(/\s/g, '')) : NaN;
-	const sell = typeof pair?.sellRate === 'string' ? Number(pair.sellRate.replace(/\s/g, '')) : NaN;
-	if (!Number.isFinite(buy) || buy <= 0 || !Number.isFinite(sell) || sell <= 0) {
-		throw new Error(`No usable Freedom Bank rate for ${baseCode}/${quoteCode}`);
-	}
-	const midpoint = buy / 2 + sell / 2;
-	return pair.buyCode === baseCode ? midpoint : 1 / midpoint;
-}
-
-async function fetchRates(b: string, quote: string): Promise<number> {
-	const sources = [
-		`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${b}.json?${Math.random()}`,
-		`https://latest.currency-api.pages.dev/v1/currencies/${b}.json?${Math.random()}`,
-		`https://raw.githubusercontent.com/fawazahmed0/exchange-api/main/latest/currencies/${b}.json?${Math.random()}`,
-	];
-
-	let lastError: unknown = null;
-	for (const url of sources) {
-		try {
-			const response = await fetch(url, { cache: 'no-store' });
-			if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
-			const data = (await response.json()) as RatesDoc;
-			const value = readRate(data, b, quote);
-			if (value === undefined) throw new Error(`Rate missing in ${url}`);
-			cacheRates(b, data);
-			return value;
-		} catch (error) {
-			lastError = error;
-		}
-	}
-	throw lastError instanceof Error ? lastError : new Error('Failed to fetch rates');
-}
-
-async function getRate(base: string, source: string): Promise<number> {
-	const b = base.toLowerCase();
-	const quote = source.toLowerCase();
-	const bankKey = `freedom_${b}_${quote}`;
-	let timeout = 0;
-	let cache: RatesDoc | null = null;
-	let bankTimeout = 0;
-	let bankCache: RatesDoc | null = null;
-	try {
-		timeout = Number(localStorage.getItem(cacheTimeoutKey(b)) || 0);
-		cache = safeParseJSON<RatesDoc>(localStorage.getItem(cacheKey(b)));
-		bankTimeout = Number(localStorage.getItem(cacheTimeoutKey(bankKey)) || 0);
-		bankCache = safeParseJSON<RatesDoc>(localStorage.getItem(cacheKey(bankKey)));
-	} catch {
-		/* ignore */
-	}
-	const rateDate = cache && typeof cache.date === 'string' ? Date.parse(cache.date) : 0;
-
-	const now = Date.now();
-	const cachedRate = readRate(cache, b, quote);
-	const cachedBankRate = readRate(bankCache, b, quote);
-	const currencyApi = {
-		cached: cachedRate,
-		fresh: timeout > now && rateDate + 24 * 60 * 60 * 1000 > now,
-		fetch: () => fetchRates(b, quote),
-	};
-	const freedomBank = {
-		cached: cachedBankRate,
-		fresh: bankTimeout > now,
-		fetch: async () => {
-			const value = await fetchFreedomBankRate(b, quote);
-			cacheRates(bankKey, { [b]: { [quote]: value } });
-			return value;
-		},
-	};
-	const providers = preferFreedomBank ? [freedomBank, currencyApi] : [currencyApi, freedomBank];
-
-	let lastError: unknown;
-	for (const provider of providers) {
-		if (provider.fresh && provider.cached !== undefined) return provider.cached;
-		try {
-			return await provider.fetch();
-		} catch (error) {
-			lastError = error;
-			log('rate provider unavailable for pair:', error);
-		}
-	}
-	const staleRate = providers[0].cached ?? providers[1].cached;
-	if (staleRate !== undefined) {
-		log('using stale cached rate');
-		return staleRate;
-	}
-	throw lastError;
 }
 
 function detectCurrencyFromMeta(): { abbr: string; sign: string | null } | null {
@@ -492,36 +295,6 @@ function priceCap(): number {
 	return HIGH_DENOM_CURRENCIES.has(sourceCurrency ?? '') ? 1e11 : 1e8;
 }
 
-/** Turn one number-like token ("1,234.56" / "1.234,56" / "1 199") into a number. */
-function tokenToNumber(token: string): number | null {
-	let s = token.replace(/[^\d.,]/g, '');
-	if (!s) return null;
-
-	const lastComma = s.lastIndexOf(',');
-	const lastDot = s.lastIndexOf('.');
-	let decSep: ',' | '.' | null = null;
-
-	if (lastComma > -1 && lastDot > -1) {
-		decSep = lastComma > lastDot ? ',' : '.';
-	} else if (lastComma > -1) {
-		const digitsAfter = s.length - lastComma - 1;
-		if (s.indexOf(',') === lastComma && (digitsAfter === 1 || digitsAfter === 2)) decSep = ',';
-	} else if (lastDot > -1) {
-		const digitsAfter = s.length - lastDot - 1;
-		if (s.indexOf('.') === lastDot && (digitsAfter === 1 || digitsAfter === 2)) decSep = '.';
-	}
-
-	if (decSep) {
-		const thouSep = decSep === ',' ? '.' : ',';
-		s = s.split(thouSep).join('').replace(decSep, '.');
-	} else {
-		s = s.replace(/[.,]/g, '');
-	}
-
-	const value = Number(s);
-	return Number.isFinite(value) && value > 0 ? value : null;
-}
-
 // A discount block reads "-15% ¥98.00 ¥83.30" — several numbers separated by
 // the currency symbol / percent. Take the LAST plausible price token (the
 // final price comes after the struck original), never the concatenation.
@@ -533,7 +306,7 @@ function parseNumeric(raw: string): number | null {
 	const cap = priceCap();
 	for (let i = tokens.length - 1; i >= 0; i--) {
 		const value = tokenToNumber(tokens[i]);
-		if (value != null && value <= cap) return value;
+		if (value != null && value > 0 && value <= cap) return value;
 	}
 	return null;
 }
@@ -847,7 +620,7 @@ async function ensureSetup(): Promise<boolean> {
 
 	try {
 		// The cached table is based on the target currency. Convert in the opposite direction.
-		rate = 1 / await getRate(targetCurrency, sourceCurrency);
+		rate = 1 / await getRate(targetCurrency, sourceCurrency, preferFreedomBank);
 		setupDone = true;
 		log('source:', sourceCurrency, 'target:', targetCurrency, 'rate 1', sourceCurrency, '=', rate, targetCurrency);
 		return true;

@@ -3,6 +3,6 @@
   "compilerOptions": {
     "lib": ["ES2020", "DOM", "DOM.Iterable"]
   },
-  "include": ["."],
+  "include": [".", "../shared"],
   "exclude": ["node_modules", "../webkit", "../backend"]
 }

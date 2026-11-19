@@ -6,6 +6,10 @@
  */
 import { Dropdown, Field, IconsModule, callable, definePlugin } from '@steambrew/client';
 import { useEffect, useState } from 'react';
+import { WalletBalance } from './wallet-balance';
+
+/** @ffi */
+export const walletHooks = { WalletBalance };
 
 const DEFAULT_TARGET = 'RUB';
 
