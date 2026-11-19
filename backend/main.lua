@@ -56,6 +56,7 @@ local function on_unload()
 end
 
 local wallet_balance = [[(\w+)=(\(0,\w+\.\w+\)\(\))\.GetCurrentUser\(\)\.strAccountBalance,(\w+=\(0,\w+\.\w+\)\(\)\.GetCurrentUser\(\)\.strAccountBalancePending);return (\w+\?\.length>0\?\(0,)(\w+\.jsx)(\)\("div",\{className:\w+\(\)\.WalletBalance,children:)(\(0,\w+\.\w+\)\("#WalletPendingBalance",\w+,\w+\))(\}\):\w+\?\.length>0\?\(0,\w+\.jsx\)\("div",\{className:\w+\(\)\.WalletBalance,children:)\w+]]
+local account_settings_balance = [[(const (\w+)=\(0,\w+\.\w+\)\(\(\)=>(\(0,\w+\.\w+\)\(\))\.GetCurrentUser\(\)\),[^;]+;let [^;]+;)(return \w+\.strAccountBalance\?\.length&&\(\w+\.strAccountBalancePending\?\.length\?\w+=\(0,\w+\.\w+\)\("#UserManagement_WalletBalanceWithPending",)(\(0,(\w+\.jsx)\)\("span",\{className:\w+\.Highlight,children:\w+\.strAccountBalance\}\))(,\w+\.strAccountBalancePending\):\w+=\(0,\w+\.\w+\)\("#UserManagement_WalletBalance",)(\(0,\w+\.jsx\)\("span",\{className:\w+\.Highlight,children:\w+\.strAccountBalance\}\))]]
 
 return {
     on_load = on_load,
@@ -69,6 +70,17 @@ return {
                 {
                     match = wallet_balance,
                     replace = [[\1=\2.GetCurrentUser().strAccountBalance,\3;const sccRenderWallet=original=>(0,\5)((window.PLUGIN_LIST&&#{{self}}?.walletHooks?.WalletBalance)||(({original})=>original),{original,balance:\1,steamId:\2.GetCurrentUser().strSteamID,client:\2});return \4\5\6(sccRenderWallet(\7))\8(sccRenderWallet(\1))]],
+                },
+            },
+        },
+        {
+            -- Wrap the available balance inside Steam's localized account settings label.
+            file = [[(?:sp|chunk~[0-9a-f]+)\.js]],
+            find = account_settings_balance,
+            transforms = {
+                {
+                    match = account_settings_balance,
+                    replace = [[\1 const sccRenderWallet=original=>(0,\6)((window.PLUGIN_LIST&&#{{self}}?.walletHooks?.WalletBalance)||(({original})=>original),{original,balance:\2.strAccountBalance,steamId:\2.strSteamID,client:\3});\4(sccRenderWallet(\5))\7(sccRenderWallet(\8))]],
                 },
             },
         },

@@ -4,7 +4,7 @@
 
 A [Millennium](https://steambrew.app) plugin: shows an **approximate price in the currency you pick** next to any Steam price — store, cart, checkout, community market, and the in-game overlay.
 
-The desktop Steam client also shows the converted wallet balance in parentheses in the top bar and in the account menu.
+The desktop Steam client also shows the converted wallet balance in parentheses in the top bar, the account menu, and the Account page in Steam Settings.
 
 > This is an approximate exchange-rate conversion, **not** an official Steam regional price.
 
